@@ -1,0 +1,26 @@
+CREATE TABLE debtor_entries (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ work_date TEXT NOT NULL CHECK(work_date>='2026-10-15'),
+ d1 INTEGER NOT NULL CHECK(d1 BETWEEN 0 AND 10000000),
+ d2 INTEGER NOT NULL CHECK(d2 BETWEEN 0 AND 10000000),
+ d3 INTEGER NOT NULL CHECK(d3 BETWEEN 0 AND 10000000),
+ d4 INTEGER NOT NULL CHECK(d4 BETWEEN 0 AND 10000000),
+ s1 INTEGER NOT NULL CHECK(s1 BETWEEN 0 AND 10000000),
+ s2 INTEGER NOT NULL CHECK(s2 BETWEEN 0 AND 10000000),
+ s3 INTEGER NOT NULL CHECK(s3 BETWEEN 0 AND 10000000),
+ created_by TEXT NOT NULL REFERENCES users(id), created_at INTEGER NOT NULL,
+ CHECK(s1+s2+s3>0)
+);
+CREATE INDEX debtor_entries_date ON debtor_entries(work_date,id DESC);
+CREATE TRIGGER debtor_entries_locked BEFORE INSERT ON debtor_entries BEGIN
+ SELECT RAISE(ABORT,'ATBOT_CONFLICT locked debt entry') WHERE EXISTS(SELECT 1 FROM payroll_period_locks WHERE NEW.work_date BETWEEN from_date AND to_date);
+END;
+CREATE TRIGGER debtor_entries_revision AFTER INSERT ON debtor_entries BEGIN
+ UPDATE discipline_state SET revision=revision+1 WHERE id=1;
+END;
+CREATE TRIGGER debtor_entries_immutable_update BEFORE UPDATE ON debtor_entries BEGIN
+ SELECT RAISE(ABORT,'ATBOT_CONFLICT immutable debt entry');
+END;
+CREATE TRIGGER debtor_entries_immutable_delete BEFORE DELETE ON debtor_entries BEGIN
+ SELECT RAISE(ABORT,'ATBOT_CONFLICT immutable debt entry');
+END;

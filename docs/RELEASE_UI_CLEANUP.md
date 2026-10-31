@@ -1,0 +1,15 @@
+# UI cleanup — 2026-10-10
+
+The workspace prioritizes daily work rather than initial setup. Overview now shows permission-appropriate live attendance, pending requests, review actions and payroll warnings, with links to each screen. Attendance, request and review counts exclude disabled employees; payroll warnings retain all unresolved financial obligations. Each metric displays an error and retry action when its data cannot load, rather than reporting a false zero.
+
+Schedules shows the saved schedule and employee/date filters first. **Add shift** expands the creation form; **Schedule rules** expands explanatory text. Existing weekly and daily edit actions are preserved. The disabled-employee reveal control stays outside the collapsed form.
+
+Phone attendance uses employee cards with visible status/session times, expandable metrics and accessible session-close actions. Desktop attendance keeps its table. Reviews, payroll, requests and schedules share responsive filter bars. Navigation groups authorized links into Daily work, Team and Settings, with distinct icons. Headings use direct page names. Brand purple remains for navigation/actions; green, amber, red and gray status treatments retain text labels.
+
+Empty supporting review queues and adjustment histories collapse; populated pending queues open automatically. Payroll warnings remain visible and still prevent finalization as required. A ready payroll period uses a short message rather than an empty warnings panel. Proposed adjustments, approval/reopening actions, audit history and permissions are unchanged.
+
+Validation: `npm run check` passed all 180 tests and the TypeScript/Vite build. Local Chrome checks verified real D1 dashboard counts with positive fixtures, dashboard navigation/failure states, visible populated review queues and payroll warnings, employee privacy, schedule editing/cancellation/restoration, disabled-employee reveal/hide across seven screens and unchanged payroll values. Six major screens fit widths 320, 390, 760, 768 and 1280 with no horizontal overflow or page errors. Visual screenshots are in `docs/previews/ui-cleanup-*.png`; all displayed people and records are synthetic local fixtures. Wrangler dry run passed.
+
+Private pre-release backup: `backups/ui-cleanup-20261010-081619/database.sql`, 121647 bytes, SHA256 `817065751C8CB0EFF947BB78A7013F84E81B7F9929ADAACBBBEF0EAD1EEDC734`. This release changes the frontend only and needs no database migration or new secret; Wrangler confirmed no pending migrations.
+
+Deployed to the existing Worker at `https://staff-attendance-api.voxid-mr.workers.dev`, version `fce279d5-f8f3-4158-9701-72b20dc037a8`, frontend `/assets/index-Dn7gUwqI.js`, CSS `/assets/index-_wCQVO9Z.css`. Live production and security checks passed for the current bundle, assets, D1 health, access boundaries and rejected invalid requests. Production checks created no synthetic business records or messages. Close/reopen the Telegram Mini App to load the updated layout. Physical Telegram and Samsung Tab A9 checks remain with the owner.

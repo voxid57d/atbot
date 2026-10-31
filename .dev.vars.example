@@ -1,0 +1,8 @@
+# Copy to .dev.vars; these fake credentials work only with the local test-login script.
+APP_ENV=development
+APP_ORIGIN=http://127.0.0.1:5173
+TELEGRAM_BOT_TOKEN=local-only-test-token
+BOOTSTRAP_TELEGRAM_ID=100001
+TELEGRAM_WEBHOOK_SECRET=local-only-webhook-secret
+# Keep delivery disabled with fake credentials. Tests mock Telegram requests.
+NOTIFICATIONS_ENABLED=false

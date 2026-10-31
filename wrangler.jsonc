@@ -1,0 +1,35 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "staff-attendance-api",
+  "main": "backend/index.ts",
+  "compatibility_date": "2026-10-06",
+  "preview_urls": false,
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "staff.eshtaylakov.uz", "custom_domain": true },
+  ],
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true },
+  },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "staff-attendance-db",
+      "database_id": "0d6fc486-37ad-4639-a199-00f92e765778",
+      "migrations_dir": "database/migrations",
+    },
+  ],
+  "triggers": { "crons": ["* * * * *"] },
+  "vars": {
+    "APP_ENV": "production",
+    "NOTIFICATIONS_ENABLED": "true",
+    "APP_ORIGIN": "https://staff.eshtaylakov.uz",
+  },
+}
