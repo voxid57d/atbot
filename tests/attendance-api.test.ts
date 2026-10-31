@@ -142,6 +142,19 @@ beforeEach(async () => {
 afterEach(async () => {
   await mf?.dispose();
 });
+describe("Team week schedule", () => {
+  it("lists every active employee's shifts for up to a week and requires attendance permission", async () => {
+    const from = localDate(), to = localDate(Date.parse(from + "T12:00:00+05:00") + 6 * 86400000);
+    const response = await req(`/schedules/team?from=${from}&to=${to}`);
+    expect(response.status, await response.clone().text()).toBe(200);
+    const week = await json<{ people: { id: string }[]; shifts: { employee_id: string; work_date: string }[] }>(response);
+    expect(week.people.map((p) => p.id)).toContain(employeeId);
+    expect(week.shifts.some((s) => s.employee_id === employeeId && s.work_date === from)).toBe(true);
+    const tooLong = localDate(Date.parse(from + "T12:00:00+05:00") + 7 * 86400000);
+    expect((await req(`/schedules/team?from=${from}&to=${tooLong}`)).status).toBe(400);
+    expect((await req(`/schedules/team?from=${from}&to=${to}`, "GET", undefined, employeeCookie)).status).toBe(403);
+  });
+});
 describe("Split regular shifts", () => {
   async function schedule() {
     const response = await req(`/schedules?employeeId=${employeeId}&from=${localDate()}&to=${localDate()}`);

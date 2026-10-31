@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { localDate, formatMoney } from "../shared/domain";
-import { Form, Field, ErrorNotice, useResource, hours } from "./ui";
+import { Form, Field, ErrorNotice, useResource, hours, day } from "./ui";
 type Policy = {
   id: number;
   enabled: number;
@@ -22,12 +22,12 @@ export function RoleDailyPay({
     (p) => p.effective_date <= localDate(),
   );
   return (
-    <details className="review-section attendance-panel role-daily-pay">
+    // Off and never configured: a quiet link instead of a full section.
+    <details className={`role-daily-pay ${current?.enabled ? "on" : "off"}`}>
       <summary>
-        Daily extended-hours rate{" "}
         {current?.enabled
-          ? `· after ${hours(current.threshold_minutes! * 60)}`
-          : "· off"}
+          ? `Extended-hours rate · after ${hours(current.threshold_minutes! * 60)}`
+          : "+ Extended-hours rate"}
       </summary>
       <p>
         For this role, use a different hourly rate after the chosen number of
@@ -48,7 +48,7 @@ export function RoleDailyPay({
           <summary>Rule history and upcoming changes</summary>
           {resource.data.history.map((p) => (
             <p key={p.id}>
-              {p.effective_date}:{" "}
+              {day(p.effective_date)}:{" "}
               {p.enabled
                 ? `${formatMoney(p.hourly_rate!)} / hour after ${hours(p.threshold_minutes! * 60)}`
                 : "Rule off"}

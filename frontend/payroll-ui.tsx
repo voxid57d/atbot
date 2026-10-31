@@ -22,6 +22,7 @@ import {
   clock,
   ShiftAttendanceDetails,
   type ShiftAttendance,
+  day,
 } from "./ui";
 import { currentLaunchData } from "./api";
 import { t } from "./text";
@@ -206,7 +207,7 @@ function Breakdown({
           .map((d) => (
             <article className="payroll-day" key={d.date}>
               <header>
-                <strong>{d.date}</strong>
+                <strong>{day(d.date)}</strong>
                 <span>{formatMoney(d.grossEstimate)}</span>
               </header>
               <dl className="payroll-day-times">
@@ -278,7 +279,7 @@ function Breakdown({
                 {t(a.kind)} · {formatMoney(a.amount)} · {a.status}
               </strong>
               <p>
-                {a.work_date} · {a.reason}
+                {day(a.work_date)} · {a.reason}
               </p>
               {a.decision_reason && <p>{a.decision_reason}</p>}
             </article>
@@ -291,7 +292,7 @@ function Breakdown({
           .filter((v) => v.fineDecision)
           .map((v) => (
             <p key={v.id}>
-              {v.work_date} · {v.category} · {v.fineDecision!.status} ·{" "}
+              {day(v.work_date)} · {v.category} · {v.fineDecision!.status} ·{" "}
               {formatMoney(v.fineDecision!.amount)} · {v.fineDecision!.reason}
             </p>
           ))}
@@ -465,7 +466,7 @@ export function PayrollScreen({
               <div>
                 <strong>{monthName(data.period.from)}</strong>
                 <p className="muted">
-                  {data.period.from} - {data.period.to}
+                  {day(data.period.from)} - {day(data.period.to)}
                 </p>
               </div>
               <span
@@ -519,6 +520,9 @@ export function PayrollScreen({
               const savedFines = data.fineDecisions?.filter((f) => f.employee_id === entry.employeeId)
                 ?? entry.violations.filter((v) => v.fineDecision).map((v) => ({ ...v.fineDecision!,
                   violation_id: v.id, employee_id: entry.employeeId, work_date: v.work_date, progression_token: v.progressionToken }));
+              const historyCount =
+                entry.adjustments.filter((a) => a.status !== "pending").length +
+                savedFines.length;
               return (
                 <section
                   data-employee-id={entry.employeeId}
@@ -568,7 +572,8 @@ export function PayrollScreen({
                     <summary>Salary breakdown</summary>
                     <Breakdown entry={entry} showAdjustments={false} />
                   </details>
-                  <details
+                  {/* Empty sections stay hidden; the next-task button carries the count. */}
+                  {tasks.length > 0 && <details
                     className="review-section salary-review-tasks"
                     data-review-tasks
                   >
@@ -589,7 +594,7 @@ export function PayrollScreen({
                           key={w.id ?? `${w.employeeId}:${w.date}:${w.kind}:${index}`}
                         >
                           <strong>
-                            {salaryTaskLabel(w.kind)} - {w.date}
+                            {salaryTaskLabel(w.kind)} - {day(w.date)}
                           </strong>
                           <p>{w.message}</p>
                           {w.blockedBy && <p className="notice">{w.blockedBy}</p>}
@@ -642,12 +647,12 @@ export function PayrollScreen({
                             )}
                         </article>
                       ))}
-                  </details>
-                  <details className="review-section salary-decision-history">
-                    <summary>History ({entry.adjustments.filter((a) => a.status !== "pending").length + savedFines.length})</summary>
+                  </details>}
+                  {historyCount > 0 && <details className="review-section salary-decision-history">
+                    <summary>History ({historyCount})</summary>
                     {entry.adjustments.filter((a) => a.status !== "pending").map((a) => (
                       <article className="request-card" key={a.id}>
-                        <strong>{a.work_date} · {t(a.kind)} · {a.status} · {formatMoney(a.amount)}</strong>
+                        <strong>{day(a.work_date)} · {t(a.kind)} · {a.status} · {formatMoney(a.amount)}</strong>
                         {a.reason && <p>{a.reason}</p>}
                         {a.decision_reason && <p>{a.decision_reason}</p>}
                         {canApprove && data.status === "open" && a.status === "approved" && (
@@ -660,21 +665,20 @@ export function PayrollScreen({
                     {savedFines.map((f) => {
                       const current = entry.violations.find((v) => v.id === f.violation_id && v.progressionToken === f.progression_token && v.fineDecision);
                       return <article className="request-card" key={f.violation_id}>
-                        <strong>{f.work_date} · {current?.category ?? "Fine"} · {f.status} · {formatMoney(f.amount)}</strong>
+                        <strong>{day(f.work_date)} · {current?.category ?? "Fine"} · {f.status} · {formatMoney(f.amount)}</strong>
                         {f.reason && <p>{f.reason}</p>}
                         <DecisionStamp decision={f} />
                         {!current && <p className="muted">Superseded by changed attendance, discipline or policy. This decision is not applied.</p>}
                         {current && current.ordinal > 0 && canApprove && data.status === "open" && <FineDecision fine={current} revision={data.revision} periodDate={periodDate} onSaved={reload} />}
                       </article>;
                     })}
-                    {!entry.adjustments.some((a) => a.status !== "pending") && !savedFines.length && <p>No completed financial decisions in this period.</p>}
-                  </details>
+                  </details>}
                   {next && (
                     <button
                       className="primary salary-next-task"
                       onClick={() => beginReview(entry, next)}
                     >
-                      Review next task
+                      Review next task ({tasks.length})
                     </button>
                   )}
                   {tasks.length > 0 && !next && (
@@ -841,7 +845,7 @@ export function SalaryHistory() {
             <strong>{formatMoney(current.data.entry?.finalPay ?? 0)}</strong>
           </header>
           <p>
-            {current.data.period.from} - {current.data.period.to} -{" "}
+            {day(current.data.period.from)} - {day(current.data.period.to)} -{" "}
             {current.data.status === "finalized"
               ? "Finalized salary"
               : "Provisional salary calculation"}
@@ -882,7 +886,7 @@ export function SalaryHistory() {
             key={`${s.periodId}:${s.version}`}
           >
             <summary>
-              {s.period.from} — {s.period.to} · {formatMoney(s.entry.finalPay)}
+              {day(s.period.from)} — {day(s.period.to)} · {formatMoney(s.entry.finalPay)}
             </summary>
             <p>
               {t("snapshotVersion")}: {s.version} ·{" "}

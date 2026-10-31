@@ -1,6 +1,6 @@
 // Central English copy. Add matching locale dictionaries here when translations are introduced.
 export const text = {
-  debtors: "Debtors & cashier bonus",
+  debtors: "Cashier bonus",
   debtorsSub: "Shared debt percentage and its effect on cashier salaries.",
   messages: "Telegram messages",
   messagesSub:
@@ -162,7 +162,7 @@ export const text = {
   workDate: "Work date",
   absenceToday: "Today's absence request",
   requests: "Requests",
-  requestsTitle: "Employee requests",
+  requestsTitle: "Requests",
   requestsSub: "Review absences, corrections, overtime, and shift coverage.",
   cantComeToday: "I Can't Come Today",
   absenceHelp:
@@ -243,7 +243,7 @@ export const text = {
   save: "Save changes",
   cancel: "Cancel",
   create: "Create",
-  welcome: "Today at IELTS ZONE",
+  welcome: "Overview",
   overviewSub: "Attendance, requests, reviews, and payroll at a glance.",
   phase: "Staff workspace",
   foundation: "Your team’s foundation",
@@ -282,7 +282,7 @@ export const text = {
   emptyAudit: "No administrative changes yet.",
   profileTitle: "My profile",
   profileSub:
-    "Your account and current role. Open My attendance to scan in and see your records.",
+    "Your Telegram account, role and current rate.",
   active: "Active",
   inactive: "Disabled",
   scheduled: "Not yet active",
@@ -316,6 +316,12 @@ export const text = {
   actions: "Actions",
   edit: "Edit account",
   editCatalogItem: "Edit",
+  teamWeekHelp: "Choose a name to edit that person's schedule.",
+  auditPerson: "Changed by",
+  auditDetails: "Details",
+  manageAccess: "Manage access",
+  noPermissions: "No admin permissions",
+  botNotStarted: "Hasn't started the bot",
   deletePermanently: "Delete permanently",
   deleteEmployeeHelp:
     "For test accounts and people who never worked. This cannot be undone. If the employee has attendance, requests, reviews or payroll records, deletion is refused and they stay disabled so salary and audit history remain intact.",
@@ -376,7 +382,7 @@ export const text = {
   myAttendanceSub: "Scan the reception QR when arriving and leaving.",
   schedulesTitle: "Schedules",
   schedulesSub: "Weekly shifts, dated overrides, and approved extra work.",
-  tabletsTitle: "A welcome at reception.",
+  tabletsTitle: "Reception displays",
   tabletsSub: "Register a display with a QR code that renews every minute.",
   saving: "Saving...",
   chooseEmployee: "Choose an employee",

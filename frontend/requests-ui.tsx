@@ -12,6 +12,7 @@ import {
   useResource,
   clock,
   PersonSelect,
+  day,
 } from "./ui";
 import { t } from "./text";
 import { localDate } from "../shared/domain";
@@ -64,7 +65,7 @@ function Details({ row }: { row: RequestRow }) {
           {row.kind} / {row.status}
         </span>
       </div>
-      {row.full_name && <p>{row.work_date}</p>}
+      {row.full_name && <p>{day(row.work_date)}</p>}
       {p.administratorCorrection && (
         <p>Correction recorded and approved by an administrator.</p>
       )}
@@ -367,7 +368,7 @@ export function EmployeeRequests({
               {t("shiftCoverage")} / {r.status}
             </strong>
             <p>
-              {r.work_date}: {clock(r.start_at)} - {clock(r.end_at)}
+              {day(r.work_date)}: {clock(r.start_at)} - {clock(r.end_at)}
             </p>
             {r.status === "pending" && (
               <Form
@@ -423,7 +424,6 @@ export function RequestManager({ superAdmin }: { superAdmin: boolean }) {
         }
       />
       <section className="panel attendance-panel">
-        <h2>{t("requestsTitle")}</h2>
         <div className="filter-bar">
           <MoreOptions active={showDisabled}>
             <EmployeeVisibility
@@ -513,7 +513,7 @@ export function RequestManager({ superAdmin }: { superAdmin: boolean }) {
                 )
                 .map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.full_name} / {r.work_date}
+                    {r.full_name} / {day(r.work_date)}
                   </option>
                 ))}
             </select>
@@ -541,7 +541,7 @@ export function RequestManager({ superAdmin }: { superAdmin: boolean }) {
               {c.full_name} / {c.status}
             </strong>
             <p>
-              {c.work_date} / {clock(c.start_at)} - {clock(c.end_at)}
+              {day(c.work_date)} / {clock(c.start_at)} - {clock(c.end_at)}
             </p>
           </article>
         ))}

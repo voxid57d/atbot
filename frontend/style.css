@@ -3121,3 +3121,185 @@ label {
   margin: 0;
   flex: 1 1 260px;
 }
+/* Consistency pass: one filter-bar standard, switch toggle, padded grids, compact role and audit views. */
+.filter-bar input,
+.filter-bar select,
+.filter-bar > button,
+.filter-bar .more-options > summary {
+  min-height: 44px;
+}
+.filter-bar > button,
+.filter-bar .more-options > summary {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  padding: 0 14px;
+}
+/* More options always sits last in a filter bar. */
+.filter-bar > .more-options {
+  order: 99;
+}
+.employee-visibility {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: #4b3a54;
+  font-size: 13px;
+  cursor: pointer;
+}
+.switch-track {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: #d9d0de;
+  transition: background 0.15s;
+}
+.switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+  transition: transform 0.15s;
+}
+.employee-visibility[aria-checked="true"] .switch-track {
+  background: #4d1a5e;
+}
+.employee-visibility[aria-checked="true"] .switch-thumb {
+  transform: translateX(14px);
+}
+.employee-visibility:focus-visible {
+  outline: 2px solid #6d357d;
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+.panel > .employee-card-grid {
+  padding: 0 20px 20px;
+}
+.page-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+.salary-month-summary .request-heading {
+  align-items: flex-start;
+}
+.salary-month-summary .badge,
+.request-heading .badge {
+  align-self: flex-start;
+  height: auto;
+}
+.access-summary {
+  display: block;
+  margin-top: 6px;
+  color: #726879;
+}
+.how-it-works {
+  margin: 4px 0 12px;
+}
+.how-it-works > summary {
+  cursor: pointer;
+  width: fit-content;
+  color: #6d4b78;
+  font-size: 13px;
+}
+.how-it-works > p {
+  margin-top: 8px;
+  color: #62556a;
+}
+.role-daily-pay {
+  margin: 0 22px;
+  padding: 12px 0;
+  border-bottom: 1px solid #eee9f0;
+}
+.role-daily-pay > summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: #4b3a54;
+}
+.role-daily-pay.off > summary {
+  color: #7a6183;
+  list-style: none;
+}
+.role-daily-pay.off > summary::-webkit-details-marker {
+  display: none;
+}
+.role-daily-pay[open] > summary {
+  margin-bottom: 10px;
+}
+.audit-filter {
+  padding: 16px 20px 0;
+}
+.audit-day > h3 {
+  padding: 18px 20px 6px;
+  font-size: 13px;
+  color: #6d4b78;
+}
+.audit-day .audit-list article {
+  padding: 10px 20px;
+  gap: 14px;
+}
+.audit-day .audit-list time {
+  order: -1;
+  margin: 1px 0 0;
+  min-width: 40px;
+  font-size: 12px;
+}
+.team-week table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.team-week th,
+.team-week td {
+  padding: 10px 8px;
+  border-bottom: 1px solid #eee9f0;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+.team-week thead th {
+  font-weight: 500;
+  color: #726879;
+}
+.team-shift {
+  display: block;
+}
+.team-shift.cancelled {
+  text-decoration: line-through;
+  color: #a197a5;
+}
+@media (max-width: 760px) {
+  .page-actions {
+    justify-content: stretch;
+  }
+  .page-actions > button {
+    width: 100%;
+  }
+}
+.sidebar > .brand {
+  margin-bottom: 28px;
+}
+.team-week {
+  margin-top: 16px;
+}
+@media (max-width: 760px) {
+  .section-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .section-tabs button {
+    flex: 1 0 auto;
+    min-width: 0;
+    padding: 0 14px;
+  }
+}

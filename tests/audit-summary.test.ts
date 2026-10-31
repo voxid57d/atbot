@@ -22,7 +22,7 @@ describe("Readable audit history", () => {
     });
     expect(result).toContain("changed from");
     expect(result).toContain("Teacher");
-    expect(result).toContain("2026-11-01");
+    expect(result).toContain("1 Nov 2026");
     expect(result).not.toContain("hourly_rate");
   });
   it("does not invent previous amounts for older records", () => {

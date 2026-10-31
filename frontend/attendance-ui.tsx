@@ -17,7 +17,7 @@ import { localDate, formatMoney } from "../shared/domain";
 import type { Session, Shift } from "../shared/attendance";
 import { checkoutState, type CheckoutTiming } from "../shared/checkout";
 import { dayStart } from "../shared/attendance";
-import { clock, hours, ShiftAttendanceDetails, ErrorNotice, useResource, Form, Field, type Person, type ShiftAttendance } from "./ui";
+import { clock, hours, ShiftAttendanceDetails, ErrorNotice, useResource, Form, Field, type Person, type ShiftAttendance, day } from "./ui";
 export { clock, hours, ShiftAttendanceDetails, ErrorNotice, useResource, Form, Field, PersonSelect, type Person, type ShiftAttendance } from "./ui";
 export type RecordSession = Session & {
   id: string;
@@ -297,7 +297,7 @@ export function EmployeeAttendance() {
             .filter((s) => s.status === "scheduled")
             .map((s) => (
               <div className="shift-row" key={s.id}>
-                <strong>{s.work_date}</strong>
+                <strong>{day(s.work_date)}</strong>
                 <span>
                   {clock(s.start_at).slice(0, 5)} —{" "}
                   {clock(s.end_at).slice(0, 5)}
@@ -338,7 +338,7 @@ export function EmployeeAttendance() {
           Only completed hours count toward salary, after combining each day's
           credited regular time and approved overtime. Time within 5 minutes of
           the next hour counts as that hour; other leftover minutes do not carry
-          forward. {data.period.from} — {data.period.to} ·{" "}
+          forward. {day(data.period.from)} — {day(data.period.to)} ·{" "}
           {t("estimateHelp")} {data.summary.pending && t("pendingHelp")}
         </p>
         <section className="panel">
@@ -367,7 +367,7 @@ export function EmployeeAttendance() {
                   .filter((d) => d.sessions.length)
                   .map((d) => (
                     <tr key={d.date}>
-                      <td>{d.date}</td>
+                      <td>{day(d.date)}</td>
                       <td>
                         {d.sessions.map((s) => (
                           <div key={s.id}>
@@ -415,7 +415,7 @@ export function EmployeeAttendance() {
                 <details className="history-day" key={d.date}>
                   <summary>
                     <span>
-                      <strong>{d.date}</strong>
+                      <strong>{day(d.date)}</strong>
                       <small>
                         {hours(d.regularSeconds)} {t("paidRegular")}
                       </small>
@@ -656,7 +656,7 @@ export function AdminAttendance() {
                         t("openSession")
                       ) : (
                         <>
-                          {localDate(s.check_out * 1000)} {clock(s.check_out)}
+                          {localDate(s.check_out * 1000) !== localDate(s.check_in * 1000) && `${day(localDate(s.check_out * 1000))} `}{clock(s.check_out)}
                           {!s.manual && (
                             <button
                               className="text-button"
@@ -712,6 +712,18 @@ export function AdminAttendance() {
                       {clock(s.end_at).slice(0, 5)}
                     </p>
                   ))}
+                {date <= localDate() && p.sessions.length > 0 && (
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      setSelected(null);
+                      setCorrection(null);
+                      setManual({ person: p, workDate: date });
+                    }}
+                  >
+                    Add another visit manually
+                  </button>
+                )}
               </details>
               {p.activeSession && (
                 <button
@@ -725,7 +737,8 @@ export function AdminAttendance() {
                   {t("closeSession")}
                 </button>
               )}
-              {date <= localDate() && (
+              {/* Shown on the card only when nothing was recorded; otherwise it lives in the details. */}
+              {date <= localDate() && !p.sessions.length && (
                 <button
                   className="secondary compact"
                   onClick={() => {
@@ -755,7 +768,7 @@ export function AdminAttendance() {
             </button>
           </div>
           <p>
-            Workday: {correction.session.work_date}. Recorded check-in:{" "}
+            Workday: {day(correction.session.work_date)}. Recorded check-in:{" "}
             {clock(correction.session.check_in)}. Recorded checkout:{" "}
             {localDate(correction.session.check_out! * 1000)}{" "}
             {clock(correction.session.check_out!)}.

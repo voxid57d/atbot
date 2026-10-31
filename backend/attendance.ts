@@ -432,6 +432,23 @@ attendanceRoutes.post("/schedules/extra", async (c) => {
     201,
   );
 });
+// Whole-team week for the Schedules page when no single employee is selected.
+attendanceRoutes.get("/schedules/team", async (c) => {
+  requirePermission(c, "attendance.manage");
+  const from = date.parse(c.req.query("from") ?? localDate()),
+    to = date.parse(c.req.query("to") ?? from);
+  if (to < from || (dayStart(to) - dayStart(from)) / 86400 >= 7)
+    throw new HTTPException(400, { message: "Choose a range of up to 7 days." });
+  const shifts = await getShiftsRange(c.env.DB, null, from, to);
+  const people = (
+    await c.env.DB.prepare(
+      "SELECT e.id,u.full_name,u.active FROM employees e JOIN users u ON u.id=e.user_id WHERE e.activation_date<=? AND (e.deactivation_date IS NULL OR e.deactivation_date>?) ORDER BY u.full_name",
+    )
+      .bind(to, from)
+      .all()
+  ).results;
+  return c.json({ people, shifts });
+});
 attendanceRoutes.get("/schedules", async (c) => {
   requirePermission(c, "attendance.manage");
   const id = employeeId.parse(c.req.query("employeeId")),

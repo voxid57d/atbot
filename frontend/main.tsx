@@ -6,7 +6,14 @@ import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api, ApiError, currentLaunchData, setLocalLaunchData } from "./api";
 import { t, type TextKey } from "./text";
-import { can, formatMoney, permissions, type Identity } from "../shared/domain";
+import {
+  can,
+  formatMoney,
+  localDate,
+  permissions,
+  type Identity,
+} from "../shared/domain";
+import { clock, day } from "./ui";
 import "./style.css";
 import { EmployeeAttendance, AdminAttendance } from "./attendance-ui";
 import { RequestManager } from "./requests-ui";
@@ -185,6 +192,13 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
         <path d="M4 22v-3a8 8 0 0 1 16 0v3" />
       </>
     ),
+    debtors: (
+      <>
+        <rect x="4" y="3" width="16" height="18" rx="2" />
+        <path d="M8 8h8M8 12h8M8 16h5" />
+      </>
+    ),
+    messages: <path d="M21 3 3 10.5l7 2.5 2.5 7zM10 13l11-10" />,
     today: (
       <>
         <rect x="3" y="5" width="18" height="16" rx="2" />
@@ -254,6 +268,7 @@ function App() {
   const [dialog, setDialog] = useState<Dialog | null>(null),
     [notice, setNotice] = useState(""),
     [search, setSearch] = useState(""),
+    [auditActor, setAuditActor] = useState(""),
     [history, setHistory] = useState<{
       assignments: Record<string, unknown>[];
       rates: Record<string, unknown>[];
@@ -439,14 +454,13 @@ function App() {
     { id: "profile", visible: true },
     { id: "employees", visible: can(user, "employees.manage") },
     { id: "roles", visible: can(user, "salary.manage") },
-    { id: "access", visible: user.access === "super_admin" },
     { id: "audit", visible: can(user, "audit.view") },
     { id: "messages", visible: user.access !== "employee" },
   ].filter((v) => v.visible);
   // Related pages share one sidebar entry and switch with tabs at the top of the page.
   const sections: Record<string, string[]> = {
     today: ["reviews", "attendance", "requests"],
-    settings: ["roles", "tablets", "access", "audit"],
+    settings: ["roles", "tablets", "audit"],
   };
   const sectionPages = (id: string) =>
     (sections[id] ?? [id]).filter((p) => links.some((l) => l.id === p));
@@ -593,6 +607,34 @@ function App() {
         reasonField,
       ],
     });
+  const manageAccess = (u: AdminUser) =>
+    setDialog({
+      title: t("manage") + " · " + u.full_name,
+      path: `/admin/users/${u.id}/access`,
+      fields: [
+        {
+          key: "access",
+          label: "accessType",
+          type: "select",
+          initial: u.access,
+          options: [
+            { value: "employee", label: t("employee") },
+            { value: "admin", label: t("admin") },
+          ],
+        },
+        {
+          key: "permissions",
+          label: "permissionTitle",
+          type: "permissions",
+          initial: u.permissions,
+        },
+        reasonField,
+      ],
+      transform: (values) => ({
+        ...values,
+        permissions: values.access === "employee" ? [] : values.permissions,
+      }),
+    });
   async function showHistory(e: Employee) {
     setError("");
     try {
@@ -625,13 +667,6 @@ function App() {
     <div className="shell">
       <aside className={`sidebar ${mobileMenuOpen ? "menu-open" : ""}`}>
         <Brand />
-        <div className="workspace">
-          <span className="workspace-icon">IZ</span>
-          <div>
-            {t("workspace")}
-            <small>{t("location")}</small>
-          </div>
-        </div>
         <button
           className="mobile-menu-toggle"
           aria-expanded={mobileMenuOpen}
@@ -722,16 +757,6 @@ function App() {
         </div>
       </aside>
       <div className="main">
-        <header className="topbar">
-          <span>
-            {t(currentPage as TextKey)}{" "}
-            <span className="topbar-divider">/</span>{" "}
-            <span className="muted">{t("workspace")}</span>
-          </span>
-          <div>
-            <span className="top-avatar">{user.fullName.slice(0, 1)}</span>
-          </div>
-        </header>
         <main className="content">
           {(can(user, "salary.manage") || can(user, "payroll.approve")) && (
             <SalaryReviewFlow
@@ -746,15 +771,17 @@ function App() {
           )}
           <div className="page-heading">
             <div>
-              <div className="eyebrow dark">
-                {new Intl.DateTimeFormat("en-US", {
-                  timeZone: "Asia/Tashkent",
-                  weekday: "long",
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                }).format(new Date())}
-              </div>
+              {currentPage === "overview" && (
+                <div className="eyebrow dark">
+                  {new Intl.DateTimeFormat("en-GB", {
+                    timeZone: "Asia/Tashkent",
+                    weekday: "long",
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  }).format(new Date())}
+                </div>
+              )}
               <h1>{t(title)}</h1>
               <p>{t(sub)}</p>
             </div>
@@ -766,12 +793,6 @@ function App() {
               >
                 <Icon name="plus" />
                 {t("newEmployee")}
-              </button>
-            )}
-            {currentPage === "roles" && (
-              <button className="primary" onClick={addRole}>
-                <Icon name="plus" />
-                {t("newRole")}
               </button>
             )}
           </div>
@@ -886,6 +907,19 @@ function App() {
                                 : "active",
                           )}
                         </span>
+                        {e.access !== "employee" && (
+                          <span className="badge" title={users.find((u) => u.id === e.user_id)?.permissions.map((p) => t(p)).join(", ")}>
+                            {t(e.access)}
+                          </span>
+                        )}
+                        {e.access === "admin" && (
+                          <small className="access-summary">
+                            {users
+                              .find((u) => u.id === e.user_id)
+                              ?.permissions.map((p) => t(p))
+                              .join(", ") || t("noPermissions")}
+                          </small>
+                        )}
                       </div>
                       <div>
                         <details className="row-menu">
@@ -926,6 +960,17 @@ function App() {
                               </button>
                             )}
                             {user.access === "super_admin" &&
+                              e.access !== "super_admin" &&
+                              users.some((u) => u.id === e.user_id) && (
+                                <button
+                                  onClick={() =>
+                                    manageAccess(users.find((u) => u.id === e.user_id)!)
+                                  }
+                                >
+                                  {t("manageAccess")}
+                                </button>
+                              )}
+                            {user.access === "super_admin" &&
                               !e.active &&
                               e.access === "employee" && (
                                 <button
@@ -955,6 +1000,14 @@ function App() {
                 </div>
               )}
             </section>
+          )}
+          {currentPage === "roles" && (
+            <div className="page-actions">
+              <button className="primary" onClick={addRole}>
+                <Icon name="plus" />
+                {t("newRole")}
+              </button>
+            </div>
           )}
           {currentPage === "roles" && (
             <div className="roles-grid">
@@ -1026,131 +1079,76 @@ function App() {
               ))}
             </div>
           )}
-          {currentPage === "access" && (
-            <section className="panel">
-              <div className="attendance-panel">
-                <EmployeeVisibility
-                  showDisabled={showDisabledEmployees}
-                  onChange={setShowDisabledEmployees}
-                  disabledCount={users.filter((u) => !u.active).length}
-                />
-              </div>
-              <div className="employee-card-grid employee-directory">
-                {users
-                  .filter((u) => showDisabledEmployees || !!u.active)
-                  .map((u) => (
-                    <article
-                      className="employee-card employee-directory-card"
-                      data-employee-id={u.id}
-                      key={u.id}
-                    >
-                      <div>
-                        <strong>{u.full_name}</strong>
-                        <small>{u.telegram_id}</small>
-                      </div>
-                      <div>
-                        <span className="badge">{t(u.access)}</span>
-                        {!u.active && <small>{t("inactive")}</small>}
-                      </div>
-                      <div>
-                        {u.access === "super_admin"
-                          ? "All permissions"
-                          : u.permissions.map((p) => t(p)).join(", ") || "—"}
-                      </div>
-                      <div>
-                        {u.access !== "super_admin" && (
-                          <button
-                            className="secondary compact"
-                            onClick={() =>
-                              setDialog({
-                                title: t("manage") + " · " + u.full_name,
-                                path: `/admin/users/${u.id}/access`,
-                                fields: [
-                                  {
-                                    key: "access",
-                                    label: "accessType",
-                                    type: "select",
-                                    initial: u.access,
-                                    options: [
-                                      {
-                                        value: "employee",
-                                        label: t("employee"),
-                                      },
-                                      { value: "admin", label: t("admin") },
-                                    ],
-                                  },
-                                  {
-                                    key: "permissions",
-                                    label: "permissionTitle",
-                                    type: "permissions",
-                                    initial: u.permissions,
-                                  },
-                                  reasonField,
-                                ],
-                                transform: (values) => ({
-                                  ...values,
-                                  permissions:
-                                    values.access === "employee"
-                                      ? []
-                                      : values.permissions,
-                                }),
-                              })
-                            }
-                          >
-                            {t("manage")}
-                          </button>
-                        )}
-                      </div>
-                    </article>
-                  ))}
-              </div>
-            </section>
-          )}
           {currentPage === "audit" && (
             <section className="panel">
               {!events.length ? (
                 <Empty title={t("emptyAudit")} />
               ) : (
-                <div className="audit-list">
-                  {events.map((event) => (
-                    <article key={event.id}>
-                      <span className="audit-icon">
-                        <Icon name="audit" size={18} />
-                      </span>
-                      <div>
-                        <strong>{auditSummary(event)}</strong>
-                        <p>
-                          {event.actor_name}
-                          {event.reason ? " — " + event.reason : ""}
-                        </p>
-                        <details>
-                          <summary>Full audit record</summary>
-                          <pre>
-                            {JSON.stringify(
-                              {
-                                before: event.before_json
-                                  ? JSON.parse(event.before_json)
-                                  : null,
-                                after: event.after_json
-                                  ? JSON.parse(event.after_json)
-                                  : null,
-                              },
-                              null,
-                              2,
-                            )}
-                          </pre>
-                        </details>
+                <>
+                  <div className="filter-bar audit-filter">
+                    <label>
+                      {t("auditPerson")}
+                      <select
+                        value={auditActor}
+                        onChange={(e) => setAuditActor(e.target.value)}
+                      >
+                        <option value="">{t("all")}</option>
+                        {[...new Set(events.map((e) => e.actor_name))]
+                          .sort()
+                          .map((name) => (
+                            <option key={name} value={name}>
+                              {name}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                  </div>
+                  {/* Grouped by Tashkent day so each row only needs its time. */}
+                  {Object.entries(
+                    events
+                      .filter((e) => !auditActor || e.actor_name === auditActor)
+                      .reduce<Record<string, Audit[]>>((groups, event) => {
+                        const date = localDate(event.created_at * 1000);
+                        (groups[date] ??= []).push(event);
+                        return groups;
+                      }, {}),
+                  ).map(([date, group]) => (
+                    <div className="audit-day" key={date}>
+                      <h3>{day(date)}</h3>
+                      <div className="audit-list">
+                        {group.map((event) => (
+                          <article key={event.id}>
+                            <time>{clock(event.created_at)}</time>
+                            <div>
+                              <strong>{auditSummary(event)}</strong>
+                              <p>
+                                {event.actor_name}
+                                {event.reason ? " — " + event.reason : ""}
+                              </p>
+                              <details>
+                                <summary>{t("auditDetails")}</summary>
+                                <pre>
+                                  {JSON.stringify(
+                                    {
+                                      before: event.before_json
+                                        ? JSON.parse(event.before_json)
+                                        : null,
+                                      after: event.after_json
+                                        ? JSON.parse(event.after_json)
+                                        : null,
+                                    },
+                                    null,
+                                    2,
+                                  )}
+                                </pre>
+                              </details>
+                            </div>
+                          </article>
+                        ))}
                       </div>
-                      <time>
-                        {new Intl.DateTimeFormat("en-GB", {
-                          timeZone: "Asia/Tashkent",
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                        }).format(event.created_at * 1000)}
-                      </time>
-                    </article>
+                    </div>
                   ))}
-                </div>
+                </>
               )}
             </section>
           )}
@@ -1233,10 +1231,6 @@ function App() {
               </div>
             </section>
           )}
-          <footer>
-            {t("timezone")}
-            <span>{t("brand")}</span>
-          </footer>
         </main>
       </div>
       {dialog && (

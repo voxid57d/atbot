@@ -1,11 +1,12 @@
 import { useRef, useState, type FormEvent } from "react";
 import { api } from "./api";
-import { useResource, ErrorNotice, clock } from "./ui";
+import { t } from "./text";
+import { useResource, ErrorNotice, clock, day, HowItWorks } from "./ui";
 import { localDate } from "../shared/domain";
 type Recipient = {
   id: string;
   full_name: string;
-  access: string;
+  access: "employee" | "admin" | "super_admin";
   ready: number;
 };
 type Message = {
@@ -154,8 +155,8 @@ export function TelegramMessages() {
                     <span>
                       {u.full_name}
                       <small>
-                        {u.access.replaceAll("_", " ")}
-                        {!u.ready ? " · Bot unavailable" : ""}
+                        {t(u.access)}
+                        {!u.ready ? ` · ${t("botNotStarted")}` : ""}
                       </small>
                     </span>
                   </label>
@@ -165,11 +166,13 @@ export function TelegramMessages() {
               <p>No active users available.</p>
             )}
           </fieldset>
-          <small>
-            Choose everybody selects all users who can receive bot messages,
-            including those outside your search results. Each receives a private
-            copy.
-          </small>
+          <HowItWorks>
+            <p>
+              Choose everybody selects all users who can receive bot messages,
+              including those outside your search results. Each receives a
+              private copy.
+            </p>
+          </HowItWorks>
           {unavailableCount > 0 && (
             <p>
               {unavailableCount}{" "}
@@ -217,11 +220,13 @@ export function TelegramMessages() {
             Refresh status
           </button>
         </div>
-        <p>
-          “Sent to Telegram” confirms bot delivery acceptance, not that the
-          person has read the message. Larger groups may take several minutes.
-          Unconfirmed messages are not automatically resent.
-        </p>
+        <HowItWorks>
+          <p>
+            “Sent to Telegram” confirms bot delivery acceptance, not that the
+            person has read the message. Larger groups may take several minutes.
+            Unconfirmed messages are not automatically resent.
+          </p>
+        </HowItWorks>
         <ErrorNotice error={history.error} />
         {history.loading && !history.data && <p>Loading messages…</p>}
         {history.data && !history.data.messages.length && (
@@ -234,7 +239,7 @@ export function TelegramMessages() {
               <span className="badge">{labels[m.status] ?? m.status}</span>
             </header>
             <small>
-              {localDate(m.created_at * 1000)} · {clock(m.created_at)}{" "}
+              {day(localDate(m.created_at * 1000))} · {clock(m.created_at)}{" "}
               (Tashkent)
             </small>
             <p className="telegram-message-text">{m.text}</p>

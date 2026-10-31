@@ -1,3 +1,4 @@
+import { day } from "./ui";
 import { useEffect } from "react";
 import { useResource, ErrorNotice } from "./ui";
 import { navigateTo, salaryReview, setSalaryReview } from "./navigation";
@@ -43,7 +44,7 @@ export function SalaryReviewFlow({
             : error
               ? "Unable to check remaining tasks."
               : next
-                ? `${tasks.length} remaining · ${salaryTaskLabel(next.kind)} — ${next.date}`
+                ? `${tasks.length} remaining · ${salaryTaskLabel(next.kind)} — ${day(next.date)}`
                 : tasks.length
                   ? tasks.every((w) => w.state === "blocked") ? "Remaining reviews are waiting for their prerequisites."
                     : "Remaining tasks need another administrator's permission."

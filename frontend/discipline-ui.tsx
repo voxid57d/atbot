@@ -5,7 +5,7 @@ import { EmployeeCards } from "./employee-cards";
 import { EmployeeVisibility } from "./employee-visibility";
 import { useEffect, useState } from "react";
 import { api } from "./api";
-import { Form, Field, ErrorNotice, useResource, hours } from "./ui";
+import { Form, Field, ErrorNotice, useResource, hours, day } from "./ui";
 import { t } from "./text";
 import { formatMoney, localDate } from "../shared/domain";
 import type { ReviewTask } from "../shared/review-tasks";
@@ -368,7 +368,7 @@ export function DisciplineScreen({
       <article className="request-card" key={`${d.employee_id}:${d.work_date}`}>
         <div className="request-heading">
           <strong>Workday</strong>
-          <span className="badge">{d.work_date}</span>
+          <span className="badge">{day(d.work_date)}</span>
         </div>
         {d.open_sessions > 0 && (
           <p className="notice">Work is in progress. Quality review becomes available after attendance closes.</p>
@@ -501,7 +501,7 @@ export function DisciplineScreen({
         </span>
       </div>
       <p>
-        {v.work_date} · {v.reason}
+        {day(v.work_date)} · {v.reason}
       </p>
       <p>{v.ordinal ? `#${v.ordinal} · ${v.action}` : v.action}</p>
       <p>
@@ -582,7 +582,7 @@ export function DisciplineScreen({
   const earlyCard = (e: Data["early"][number]) => (
     <article className="request-card" key={e.shiftId}>
       <strong>
-        {name(e.employee_id)} · {e.work_date}
+        {name(e.employee_id)} · {day(e.work_date)}
       </strong>
       <p>
         {t("earlyReview")}: {hours(e.missedSeconds)}
@@ -638,11 +638,11 @@ export function DisciplineScreen({
     }];
   });
   function pendingDay(group: { employeeId: string; date: string; tasks: ReviewTask[] }) {
-    const day = selectedDays.find((d) => d.employee_id === group.employeeId && d.work_date === group.date);
+    const workday = selectedDays.find((d) => d.employee_id === group.employeeId && d.work_date === group.date);
     return <article className="review-day" data-review-date={group.date}>
-      <header className="request-heading"><h3>{group.date}</h3><span className="badge status-attention">Pending {group.tasks.length}</span></header>
+      <header className="request-heading"><h3>{day(group.date)}</h3><span className="badge status-attention">Pending {group.tasks.length}</span></header>
       {[...new Set(group.tasks.map((task) => task.blockedBy).filter(Boolean))].map((message) => <p className="notice" key={message}>{message}</p>)}
-      {day && dayCard(day, true)}
+      {workday && dayCard(workday, true)}
       {selectedViolations.filter((v) => group.tasks.some((task) => task.subjectId === v.id)).map((v) => <div key={v.id}>
         {violationCard(v)}
         {group.tasks.some((task) => task.subjectId === v.id && task.kind === "fine_configuration") && <p className="notice">A super administrator must configure the fine policy. Disciplinary decisions remain separate.</p>}
@@ -676,7 +676,7 @@ export function DisciplineScreen({
       <ErrorNotice error={error} />
       {!data && <p>{loading ? t("loading") : t("retry")}</p>}
       {data && <>
-        <p>{data.period.from} – {data.period.to}. Reviews are grouped by employee and workday.</p>
+        <p>{day(data.period.from)} – {day(data.period.to)}. Reviews are grouped by employee and workday.</p>
         <div className="attendance-metrics">
           {[["Pending decisions", selectedTasks.length], [t("violationCount"), summary.countedViolations], [t("proposedFines"), formatMoney(summary.proposedFineTotal)]].map(([label, value]) => <section className="panel attendance-panel" key={label}><small>{label}</small><strong>{value}</strong></section>)}
         </div>
@@ -698,7 +698,7 @@ export function DisciplineScreen({
             {data.fineDecisions.filter(visible).map((f) => {
               const current = selectedViolations.find((v) => v.id === f.violation_id && v.progressionToken === f.progression_token && v.fineDecision);
               return <article className="request-card" key={f.violation_id}>
-                <strong>{name(f.employee_id)} · {f.work_date} · {f.status} · {formatMoney(f.amount)}</strong>
+                <strong>{name(f.employee_id)} · {day(f.work_date)} · {f.status} · {formatMoney(f.amount)}</strong>
                 {f.reason && <p>{f.reason}</p>}<DecisionStamp decision={f} />
                 {!current && <p className="muted">Superseded by changed attendance, discipline or policy. This decision is not applied.</p>}
                 {admin && canApprove && current && current.ordinal > 0 && !locked(f.work_date) && <FineDecision fine={current} revision={revision} periodDate={periodDate} onSaved={reload} />}
@@ -707,7 +707,7 @@ export function DisciplineScreen({
           </details>}
           <EmployeeCards name={name} rows={[
             ...selectedDays.filter((d) => d.quality || (d.uniform && d.uniform.status !== "pending")).map((d) => ({ employeeId: d.employee_id, key: `day:${d.work_date}`, content: dayCard(d, false) })),
-            ...data.early.filter(visible).filter((e) => e.review).map((e) => ({ employeeId: e.employee_id, key: `early:${e.shiftId}`, content: <article className="request-card"><strong>{e.work_date} · Early departure</strong><p>{e.review!.status} · {e.review!.reason}</p>{admin && !locked(e.work_date) && <details><summary>Change decision</summary>{earlyCard(e)}</details>}</article> })),
+            ...data.early.filter(visible).filter((e) => e.review).map((e) => ({ employeeId: e.employee_id, key: `early:${e.shiftId}`, content: <article className="request-card"><strong>{day(e.work_date)} · Early departure</strong><p>{e.review!.status} · {e.review!.reason}</p>{admin && !locked(e.work_date) && <details><summary>Change decision</summary>{earlyCard(e)}</details>}</article> })),
           ]} />
           <details className="panel attendance-panel">
             <summary>Monthly discipline record ({selectedViolations.length})</summary>
@@ -717,7 +717,7 @@ export function DisciplineScreen({
           </details>
           {!!data.history.filter(visible).length && <details className="panel attendance-panel">
             <summary>{t("disciplineHistory")}</summary><p>{t("disciplineHistoryHelp")}</p>
-            {data.history.filter(visible).map((h) => <article className="request-card" key={h.violation_id + h.source_token}><strong>{name(h.employee_id)} · {h.work_date}</strong><p>{h.category} · {h.reason}</p></article>)}
+            {data.history.filter(visible).map((h) => <article className="request-card" key={h.violation_id + h.source_token}><strong>{name(h.employee_id)} · {day(h.work_date)}</strong><p>{h.category} · {h.reason}</p></article>)}
           </details>}
         </section>}
         {superAdmin && <details id="discipline-policy" className="panel attendance-panel request-composer">

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ErrorNotice, Form, useResource } from "./ui";
+import { ErrorNotice, Form, useResource, day, HowItWorks } from "./ui";
 import { formatMoney } from "../shared/domain";
 import { debtorFields, debtResult, debtBands, debtBonus, type CashierBonus, type DebtorCounts, type DebtEntry } from "../shared/debtors";
 type Data = { today: string; effectiveDate: string; revision: number; locked: boolean; history: DebtEntry[] };
@@ -49,7 +49,7 @@ function CountsForm({ data, saved }: { data: Data; saved: () => Promise<void> })
   const result = debtResult(counts);
   return <section className="panel attendance-panel">
     <h2>Enter shared debtor counts</h2>
-    <p>You can save several times a day. Only the latest save counts as that day's data and updates every cashier's current bonus. Earlier saves remain in the audit record.</p>
+    <HowItWorks><p>You can save several times a day. Only the latest save counts as that day's data and updates every cashier's current bonus. Earlier saves remain in the audit record.</p></HowItWorks>
     {data.locked ? <p className="notice">This month's payroll is locked. A payroll approver must reopen it before figures can change.</p> :
       <Form path="/debtors" build={() => ({ ...Object.fromEntries(debtorFields.map((key) => [key, counts[key]])), revision })} onSaved={saved}>
         <fieldset className="debt-counts"><legend>Debtors</legend>
@@ -76,8 +76,8 @@ export function DebtorsScreen({ hasEmployee, canViewPayroll }: { hasEmployee: bo
   return <div className="attendance-stack debtors-screen">
     <ErrorNotice error={error || mine.error || payroll.error} />
     <section className="panel attendance-panel">
-      <h2>Qarzdorlar ulushi</h2>
-      <p>One shared debt percentage applies separately to each cashier's earnings for the whole month, from the first day. Only earnings while assigned as a cashier count. Bonuses are provisional until payroll approval.</p>
+      <h2>Debt share this month</h2>
+      <HowItWorks><p>One shared debt percentage applies separately to each cashier's earnings for the whole month, from the first day. Only earnings while assigned as a cashier count. Bonuses are provisional until payroll approval.</p></HowItWorks>
       <button className="secondary" onClick={() => void refresh()}>Refresh data</button>
       {!data && <p>Loading shared data…</p>}
       {data && <dl className="payroll-breakdown">
@@ -88,12 +88,12 @@ export function DebtorsScreen({ hasEmployee, canViewPayroll }: { hasEmployee: bo
     </section>
     {bonus && own && <section className="panel attendance-panel">
       <CashierSalary entry={own} own />
-      <p>Bonus = eligible earnings × (multiplier − 1). Approved overtime and extended-hours pay count. Fines, deductions, leave pay and other bonuses do not change this bonus.</p>
+      <HowItWorks><p>Bonus = eligible earnings × (multiplier − 1). Approved overtime and extended-hours pay count. Fines, deductions, leave pay and other bonuses do not change this bonus.</p></HowItWorks>
       <p className="muted">{mine.data?.status === "finalized" ? "Approved payroll snapshot" : "Current estimate; updates as attendance and debtor data change."} Full details are in My salary.</p>
     </section>}
     {canViewPayroll && <section className="panel attendance-panel">
       <h2>Cashier salaries this month</h2>
-      <p>Bonus = eligible attendance earnings × (multiplier − 1). Fines and deductions apply afterward. Open sessions are not payable until checkout.</p>
+      <HowItWorks><p>Bonus = eligible attendance earnings × (multiplier − 1). Fines and deductions apply afterward. Open sessions are not payable until checkout.</p></HowItWorks>
       {!payroll.data && <p>Loading cashier bonuses…</p>}
       {payroll.data && <>
         <p className="muted">{payroll.data.status === "finalized" ? "Approved payroll snapshot" : "Current estimates; refresh after attendance or debtor figures change."}</p>
@@ -104,18 +104,18 @@ export function DebtorsScreen({ hasEmployee, canViewPayroll }: { hasEmployee: bo
     {data && <CountsForm key={formVersion} data={data} saved={refresh} />}
     <section className="panel attendance-panel">
       <h2>Daily dynamics</h2>
-      <p>One record per day: only the last save is shown and used. You can update today's figures several times; the last save becomes the day's final record. The latest figures stay in effect until replaced.</p>
+      <HowItWorks><p>One record per day: only the last save is shown and used. You can update today's figures several times; the last save becomes the day's final record. The latest figures stay in effect until replaced.</p></HowItWorks>
       {daily.length > 0 ? <svg className="debt-chart" viewBox="0 0 600 170" role="img" aria-label="Daily debt percentages; exact values follow in the history table">
         <line x1="30" y1="140" x2="580" y2="140" stroke="currentColor" opacity="0.2" />
         <text x="0" y="145" fontSize="11">0%</text><text x="0" y="20" fontSize="11">{max.toFixed(0)}%</text>
         <polyline fill="none" stroke="#8b5cf6" strokeWidth="3" points={daily.map((r, i) => `${30 + i * 550 / Math.max(1, daily.length - 1)},${140 - debtResult(r)!.percentage / max * 120}`).join(" ")} />
-        {daily.map((r, i) => <circle key={r.id} cx={30 + i * 550 / Math.max(1, daily.length - 1)} cy={140 - debtResult(r)!.percentage / max * 120} r="4" fill="#8b5cf6"><title>{r.work_date}: {debtResult(r)!.percentage.toFixed(2)}%</title></circle>)}
+        {daily.map((r, i) => <circle key={r.id} cx={30 + i * 550 / Math.max(1, daily.length - 1)} cy={140 - debtResult(r)!.percentage / max * 120} r="4" fill="#8b5cf6"><title>{day(r.work_date)}: {debtResult(r)!.percentage.toFixed(2)}%</title></circle>)}
         <text x="30" y="165" fontSize="11">{daily[0].work_date}</text><text x="580" y="165" textAnchor="end" fontSize="11">{daily.length > 1 ? daily.at(-1)!.work_date : ""}</text>
       </svg> : <p>No entries this month.</p>}
       {bonus && <p className="muted">Bonus comparisons below use your current eligible earnings ({formatMoney(bonus.eligibleEarnings)}) for every entry, to show the effect of changing debt levels.</p>}
       {data && data.history.length > 0 && <div className="debt-table-scroll"><table>
         <thead><tr><th>Saved (Tashkent)</th><th>Debtors / students</th><th>Debt %</th><th>Multiplier</th>{bonus && <th>Bonus on current earnings</th>}</tr></thead>
-        <tbody>{data.history.map((r) => { const d = debtResult(r)!; return <tr key={r.id}><td>{r.work_date} {new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Tashkent", timeStyle: "short" }).format(r.created_at * 1000)}{r.id === latest?.id ? " · Latest" : ""}</td><td>{d.debtors} / {d.students}<details><summary>Counts</summary>{debtorFields.map((key) => <p key={key}>{labels[key]}: {r[key]}</p>)}</details></td><td>{d.percentage.toFixed(2)}%</td><td>{d.multiplier}×</td>{bonus && <td>{formatMoney(debtBonus(bonus.eligibleEarnings, r).amount)}</td>}</tr>; })}</tbody>
+        <tbody>{data.history.map((r) => { const d = debtResult(r)!; return <tr key={r.id}><td>{day(r.work_date)} {new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Tashkent", timeStyle: "short" }).format(r.created_at * 1000)}{r.id === latest?.id ? " · Latest" : ""}</td><td>{d.debtors} / {d.students}<details><summary>Counts</summary>{debtorFields.map((key) => <p key={key}>{labels[key]}: {r[key]}</p>)}</details></td><td>{d.percentage.toFixed(2)}%</td><td>{d.multiplier}×</td>{bonus && <td>{formatMoney(debtBonus(bonus.eligibleEarnings, r).amount)}</td>}</tr>; })}</tbody>
       </table></div>}
     </section>
     <details className="panel attendance-panel"><summary>Bonus multiplier table</summary><p>Lower boundaries are included. Upper boundaries are excluded. Exactly zero receives 2.5×. Bands use the full percentage before display rounding.</p><dl className="payroll-breakdown">{debtBands.map((b) => <div key={b.label}><dt>{b.label}</dt><dd>{b.multiplier}×{b.multiplier === 1 ? " · no bonus" : ""}</dd></div>)}</dl></details>

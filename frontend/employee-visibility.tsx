@@ -1,5 +1,6 @@
 import { t } from "./text";
 
+// A visible on/off switch rather than plain text, so it reads as a setting.
 export function EmployeeVisibility({
   showDisabled,
   onChange,
@@ -12,11 +13,15 @@ export function EmployeeVisibility({
   return (
     <button
       type="button"
-      className="secondary compact employee-visibility"
-      aria-pressed={showDisabled}
+      role="switch"
+      className="employee-visibility"
+      aria-checked={showDisabled}
       onClick={() => onChange(!showDisabled)}
     >
-      {t(showDisabled ? "hideDisabledEmployees" : "showDisabledEmployees")}
+      <span className="switch-track" aria-hidden="true">
+        <span className="switch-thumb" />
+      </span>
+      {t("showDisabledEmployees")}
       {disabledCount > 0 && ` (${disabledCount})`}
     </button>
   );

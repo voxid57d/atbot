@@ -2,13 +2,22 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import { api } from "./api";
 import { t, type TextKey } from "./text";
 import type { regularShiftAttendance } from "../shared/attendance";
+// One display format everywhere: times as 16:47, dates as 31 Oct 2026 (Tashkent).
 export const clock = (seconds: number) =>
   new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Tashkent",
     hour: "2-digit",
     minute: "2-digit",
-    second: "2-digit",
   }).format(seconds * 1000);
+export const day = (isoDate: string) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(isoDate)
+    ? new Intl.DateTimeFormat("en-GB", {
+        timeZone: "UTC",
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }).format(Date.parse(isoDate + "T00:00:00Z"))
+    : isoDate;
 export const hours = (seconds: number) =>
   `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
 export type ShiftAttendance = ReturnType<typeof regularShiftAttendance>[number];
@@ -18,6 +27,15 @@ export function ShiftAttendanceDetails({ rows }: { rows?: ShiftAttendance[] }) {
     <strong>{clock(s.start_at).slice(0, 5)}–{clock(s.end_at).slice(0, 5)}</strong>
     {` · Late ${s.lateMinutes}m · Early departure ${hours(s.earlyDepartureSeconds)}`}
   </p>)}</div>;
+}
+// Long explanations stay available without pushing the controls down the page.
+export function HowItWorks({ children }: { children: ReactNode }) {
+  return (
+    <details className="how-it-works">
+      <summary>How this works</summary>
+      {children}
+    </details>
+  );
 }
 export function ErrorNotice({ error }: { error: string }) {
   return error ? (

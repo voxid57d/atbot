@@ -21,6 +21,7 @@ import {
   clock,
   hours,
   type Person,
+  day,
 } from "./ui";
 const minute = (f: FormData, key: string) => {
   const [h, m] = String(f.get(key)).split(":").map(Number);
@@ -131,6 +132,14 @@ export function ScheduleManager() {
             />
           </label>
         </div>
+        {!employeeId && (
+          <TeamWeek
+            key={from + revision}
+            from={from}
+            showDisabled={showDisabled}
+            onPick={setEmployee}
+          />
+        )}
         {employeeId && (
           <section className="employee-card" data-employee-id={employeeId}>
             <header className="employee-card-heading">
@@ -268,6 +277,84 @@ export function ScheduleManager() {
     </div>
   );
 }
+// Read-only overview of everyone's week; choosing a name opens the editable view.
+function TeamWeek({
+  from,
+  showDisabled,
+  onPick,
+}: {
+  from: string;
+  showDisabled: boolean;
+  onPick: (id: string) => void;
+}) {
+  const days = Array.from({ length: 7 }, (_, i) =>
+      localDate(Date.parse(from + "T12:00:00+05:00") + i * 86400000),
+    ),
+    { data, error, loading } = useResource<{
+      people: { id: string; full_name: string; active: number }[];
+      shifts: (Shift & { employee_id: string })[];
+    }>(`/schedules/team?from=${days[0]}&to=${days[6]}`);
+  const people = (data?.people ?? []).filter((p) => showDisabled || !!p.active);
+  return (
+    <div className="team-week">
+      <ErrorNotice error={error} />
+      {!data && <p>{loading ? t("loading") : ""}</p>}
+      {data && !people.length && <p>{t("emptyEmployees")}</p>}
+      {data && !!people.length && (
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>{t("employee")}</th>
+                {days.map((d) => (
+                  <th key={d}>
+                    {new Intl.DateTimeFormat("en-GB", {
+                      timeZone: "UTC",
+                      weekday: "short",
+                      day: "numeric",
+                      month: "short",
+                    }).format(Date.parse(d + "T00:00:00Z"))}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {people.map((p) => (
+                <tr key={p.id}>
+                  <th scope="row">
+                    <button className="text-button" onClick={() => onPick(p.id)}>
+                      {p.full_name}
+                    </button>
+                  </th>
+                  {days.map((d) => {
+                    const shifts = data.shifts.filter(
+                      (s) => s.employee_id === p.id && s.work_date === d,
+                    );
+                    return (
+                      <td key={d}>
+                        {shifts.length
+                          ? shifts.map((s) => (
+                              <span
+                                key={s.id}
+                                className={`team-shift ${s.status}`}
+                              >
+                                {clock(s.start_at)}–{clock(s.end_at)}
+                              </span>
+                            ))
+                          : <span className="muted">—</span>}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="muted">{t("teamWeekHelp")}</p>
+    </div>
+  );
+}
 function ScheduleView({
   employeeId,
   date,
@@ -379,7 +466,7 @@ function ScheduleView({
         <summary>Shift list</summary>
         {data?.shifts.map((s) => (
           <div className="shift-row" key={s.id}>
-            <strong>{s.work_date}</strong>
+            <strong>{day(s.work_date)}</strong>
             <span>
               {clock(s.start_at).slice(0, 5)} — {clock(s.end_at).slice(0, 5)}
             </span>
@@ -410,7 +497,7 @@ function ScheduleView({
                 after = JSON.parse(h.after_json) as Shift;
               return (
                 <p key={h.id}>
-                  {h.work_date} · {clock(before.start_at).slice(0, 5)}–
+                  {day(h.work_date)} · {clock(before.start_at).slice(0, 5)}–
                   {clock(before.end_at).slice(0, 5)} ({before.status}) →{" "}
                   {clock(after.start_at).slice(0, 5)}–
                   {clock(after.end_at).slice(0, 5)} ({after.status}) ·{" "}
@@ -436,7 +523,7 @@ function ScheduleView({
                   <> / {minuteTime(w.second_start_minute)} — {minuteTime(w.second_end_minute)}</>}
               </span>
               <span>
-                {w.effective_date} ·{" "}
+                {day(w.effective_date)} ·{" "}
                 {w.active ? t("scheduledDay") : t("cancelled")}
               </span>
               <button
@@ -614,7 +701,7 @@ function ScheduleView({
               {String(w.end_minute % 60).padStart(2, "0")}
               {w.second_start_minute !== null && w.second_end_minute !== null &&
                 <> / {minuteTime(w.second_start_minute)} — {minuteTime(w.second_end_minute)}</>}
-              {" "}· {w.effective_date}{" "}
+              {" "}· {day(w.effective_date)}{" "}
               · {w.active ? t("scheduledDay") : t("cancelled")}
             </p>
           ))}

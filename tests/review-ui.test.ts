@@ -41,7 +41,7 @@ describe("Review pending/history rendering", () => {
   it.each(["approved", "rejected"])("keeps a completed %s fine in history without an active approval form", (status) => {
     state.payroll.entries[0].violations[0].fineDecision = { status, amount: status === "approved" ? 50000 : 0, reason: "Reviewed" };
     const html = salary();
-    expect(html).toContain("Pending (0)");
+    expect(html).not.toContain("Pending (");
     expect(html).toContain("History (1)");
     expect(html).toContain("Change decision");
     expect(html).not.toContain("Approve amount");

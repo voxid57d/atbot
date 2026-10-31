@@ -24,6 +24,16 @@ const time = (value: unknown) =>
         timeStyle: "short",
       }).format(value * 1000)
     : "not recorded";
+// Dates inside sentences use the app-wide "31 Oct 2026" format.
+const day = (value: unknown) =>
+  typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Intl.DateTimeFormat("en-GB", {
+        timeZone: "UTC",
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }).format(Date.parse(value + "T00:00:00Z"))
+    : String(value);
 export function auditSummary(event: Event) {
   const before = read(event.before_json),
     after = read(event.after_json);
@@ -34,13 +44,13 @@ export function auditSummary(event: Event) {
     return `Telegram message queued for ${after.recipientName ?? "a user"}.`;
   if (event.action === "role.daily-pay")
     return after.enabled
-      ? `Daily extended-hours rate${subject} set to ${formatMoney(Number(after.hourlyRate))} per hour after ${Number(after.thresholdMinutes) / 60} salary-counted hours, from ${after.effectiveDate}.`
-      : `Daily extended-hours rate${subject} disabled from ${after.effectiveDate}.`;
+      ? `Daily extended-hours rate${subject} set to ${formatMoney(Number(after.hourlyRate))} per hour after ${Number(after.thresholdMinutes) / 60} salary-counted hours, from ${day(after.effectiveDate)}.`
+      : `Daily extended-hours rate${subject} disabled from ${day(after.effectiveDate)}.`;
   if (event.action === "rate.create") {
     const old = before.hourly_rate ?? before.hourlyRate;
     const next = after.hourlyRate;
     return typeof next === "number"
-      ? `Hourly rate${subject} ${typeof old === "number" ? `changed from ${formatMoney(old)} to` : "set to"} ${formatMoney(next)}${after.effectiveDate ? ` from ${after.effectiveDate}` : ""}.`
+      ? `Hourly rate${subject} ${typeof old === "number" ? `changed from ${formatMoney(old)} to` : "set to"} ${formatMoney(next)}${after.effectiveDate ? ` from ${day(after.effectiveDate)}` : ""}.`
       : `Hourly rate updated${subject}.`;
   }
   if (event.action === "schedule.shift.edit")
@@ -58,7 +68,7 @@ export function auditSummary(event: Event) {
       changes.push(after.active ? "account reactivated" : "account disabled");
     if (after.levelId !== undefined)
       changes.push(
-        `role level changed${after.effectiveDate ? ` from ${after.effectiveDate}` : ""}`,
+        `role level changed${after.effectiveDate ? ` from ${day(after.effectiveDate)}` : ""}`,
       );
     return `Employee${subject}: ${changes.join("; ") || "details updated"}.`;
   }
@@ -91,7 +101,7 @@ export function auditSummary(event: Event) {
     return `Administrator confirmed departure${subject} at ${time(after.checkout)}.`;
   if (event.action.startsWith("request.")) {
     const [, kind, decision] = event.action.split(".");
-    return `${kind.charAt(0).toUpperCase() + kind.slice(1)} request${subject} ${decision === "create" ? "submitted" : decision}${after.date ? ` for ${after.date}` : ""}.`;
+    return `${kind.charAt(0).toUpperCase() + kind.slice(1)} request${subject} ${decision === "create" ? "submitted" : decision}${after.date ? ` for ${day(after.date)}` : ""}.`;
   }
   const labels: Record<string, string> = {
     "payroll.finalize": "Monthly salary calculation finalized",
@@ -106,10 +116,33 @@ export function auditSummary(event: Event) {
     "employee.create": "Employee registered",
     "employee.telegram.change": "Employee Telegram account changed",
     "admin.access.change": "Administrator permissions changed",
+    "employee.delete": "Employee permanently deleted",
+    "bootstrap": "Owner account created",
+    "role.create": "Role created",
+    "roles.update": "Role updated",
+    "level.create": "Level created",
+    "levels.update": "Level updated",
+    "schedule.weekly.create": "Recurring weekly schedule added",
+    "schedule.override": "One-day schedule change saved",
+    "schedule.extra.create": "Extra shift added",
+    "overtime.approve": "Overtime approved",
+    "coverage.create": "Shift coverage requested",
+    "coverage.accepted": "Shift coverage accepted",
+    "coverage.declined": "Shift coverage declined",
+    "absence.policy": "Absence pay policy changed",
+    "discipline.policy": "Disciplinary fine policy changed",
+    "violation.decision": "Violation decision recorded",
+    "early.review": "Early departure reviewed",
+    "meeting.complete": "Manager meeting recorded",
+    "payroll.settings": "Payroll month settings changed",
+    "debtors.record": "Debtor figures saved",
+    "notifications.preferences": "Notification preferences changed",
   };
+  // Unknown actions still read as a sentence: "foo.bar_baz" → "Foo bar baz".
+  const fallback = event.action.replace(/[._-]+/g, " ");
   return (
     (labels[event.action] ??
-      event.action.replaceAll(".", " ").replaceAll("_", " ")) +
+      fallback.charAt(0).toUpperCase() + fallback.slice(1)) +
     subject +
     "."
   );
