@@ -6,13 +6,13 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "dev:web": "vite --host 127.0.0.1",
-    "dev:api": "wrangler dev --ip 127.0.0.1 --port 8787",
+    "dev:api": "wrangler dev --ip 127.0.0.1 --port 8787 --local-upstream 127.0.0.1:8787",
     "db:migrate": "wrangler d1 migrations apply DB --local",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && vite build",
     "test": "vitest run",
     "check": "npm run test && npm run build",
-    "preview": "wrangler dev --ip 127.0.0.1 --port 8787",
+    "preview": "wrangler dev --ip 127.0.0.1 --port 8787 --local-upstream 127.0.0.1:8787",
     "test:login": "node scripts/test-login.mjs"
   },
   "dependencies": {

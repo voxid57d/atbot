@@ -76,6 +76,33 @@ describe("Review pending/history rendering", () => {
     expect(html).toContain("This decision is not applied.");
     expect(html).toContain("Approve amount");
   });
+  const day = (date: string, uniform: any = null) => ({ employee_id: "e", work_date: date, open_sessions: 0,
+    qualityPending: true, attendance_snapshot: "s", inProgress: false, actualSeconds: 3600, regularSeconds: 3600,
+    overtimeSeconds: 0, paidSeconds: 3600, shifts: [], sessions: [], quality: null, uniform });
+  const dayTasks = (date: string) => [reviewTask("e", date, "quality_review", "Q", date, "s"),
+    reviewTask("e", date, "uniform_review", "U", date, "null")];
+  it("reviews a routine day with one Confirm day button on Good and Approve, with the note tucked away", () => {
+    state.discipline.days = [day("2026-10-16")];
+    state.discipline.tasks = dayTasks("2026-10-16");
+    const html = renderToStaticMarkup(createElement(DisciplineScreen, { admin: true }));
+    expect(html.match(/>Confirm day</g)).toHaveLength(1);
+    expect(html).toMatch(/<option value="good" selected="">/);
+    expect(html).toMatch(/<option value="approved" selected="">/);
+    expect(html).toContain("+ Add note");
+    expect(html).not.toContain('name="reason"');
+    expect(html).toContain("Approve all as shown (1)");
+  });
+  it("leaves days with lateness or a declared missing uniform out of Approve all", () => {
+    state.discipline.days = [day("2026-10-16"), day("2026-10-17", { status: "pending", declared_at: 1,
+      declared_has_uniform: 0, admin_has_uniform: null, decision_reason: null }), day("2026-10-18")];
+    state.discipline.tasks = [...dayTasks("2026-10-16"), ...dayTasks("2026-10-17"), ...dayTasks("2026-10-18"),
+      reviewTask("e", "2026-10-18", "lateness_review", "Late", "v")];
+    const html = renderToStaticMarkup(createElement(DisciplineScreen, { admin: true }));
+    expect(html).toContain("Approve all as shown (1)");
+    // The declared-missing day defaults to Missing uniform and asks for a note.
+    expect(html).toMatch(/<option value="rejected" selected="">/);
+    expect(html).toContain("Note (required)");
+  });
   it("renders the same unresolved decision count in the overview and inbox", () => {
     state.discipline.tasks = [reviewTask("e", "2026-10-16", "lateness_review", "Review lateness", "v")];
     state.discipline.violations = [{ ...state.payroll.entries[0].violations[0], employee_id: "e", source_token: "source",

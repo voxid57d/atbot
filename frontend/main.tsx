@@ -185,6 +185,18 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
         <path d="M4 22v-3a8 8 0 0 1 16 0v3" />
       </>
     ),
+    today: (
+      <>
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M7 3v4M17 3v4M3 10h18M8 15l2.5 2.5L16 13" />
+      </>
+    ),
+    settings: (
+      <>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1" />
+      </>
+    ),
     arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
     plus: <path d="M12 5v14M5 12h14" />,
     logout: (
@@ -431,6 +443,22 @@ function App() {
     { id: "audit", visible: can(user, "audit.view") },
     { id: "messages", visible: user.access !== "employee" },
   ].filter((v) => v.visible);
+  // Related pages share one sidebar entry and switch with tabs at the top of the page.
+  const sections: Record<string, string[]> = {
+    today: ["reviews", "attendance", "requests"],
+    settings: ["roles", "tablets", "access", "audit"],
+  };
+  const sectionPages = (id: string) =>
+    (sections[id] ?? [id]).filter((p) => links.some((l) => l.id === p));
+  const sectionOf = (id: string) =>
+    Object.keys(sections).find((s) => sections[s].includes(id)) ?? id;
+  const open = (id: string) => {
+    clearSelection();
+    setNavigationVersion((v) => v + 1);
+    setPage(id);
+    setMobileMenuOpen(false);
+    window.scrollTo({ top: 0 });
+  };
   const currentPage = links.some((l) => l.id === page)
     ? page
     : me.employee
@@ -630,13 +658,11 @@ function App() {
         <nav id="main-navigation" aria-label="Main navigation">
           {[
             {
-              label: "Daily work",
+              label: t("navDailyWork"),
               ids: [
                 "overview",
                 "myAttendance",
-                "attendance",
-                "requests",
-                "reviews",
+                "today",
                 "myDiscipline",
                 "payroll",
                 "salaryHistory",
@@ -644,45 +670,35 @@ function App() {
                 "schedules",
               ],
             },
-            { label: "Team", ids: ["employees", "roles", "messages"] },
-            {
-              label: "Settings",
-              ids: ["tablets", "access", "audit", "profile"],
-            },
+            { label: t("navTeam"), ids: ["employees", "messages"] },
+            { label: t("navAccount"), ids: ["settings", "profile"] },
           ].map((group) => {
-            const items = links.filter((l) => group.ids.includes(l.id));
+            const items = group.ids.filter((id) => sectionPages(id).length);
             return (
               items.length > 0 && (
                 <div className="nav-group" key={group.label}>
                   <span className="nav-group-label">{group.label}</span>
-                  {items.map((l) => (
-                    <button
-                      key={l.id}
-                      onClick={() => {
-                        clearSelection();
-                        setNavigationVersion((v) => v + 1);
-                        setPage(l.id);
-                        setMobileMenuOpen(false);
-                        window.scrollTo({ top: 0 });
-                      }}
-                      className={currentPage === l.id ? "selected" : ""}
-                      aria-current={currentPage === l.id ? "page" : undefined}
-                    >
-                      <Icon name={l.id} />
-                      {t(l.id as TextKey)}
-                      {currentPage === l.id && <span className="nav-dot" />}
-                    </button>
-                  ))}
+                  {items.map((id) => {
+                    const selected = sectionOf(currentPage) === id;
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => open(sectionPages(id)[0])}
+                        className={selected ? "selected" : ""}
+                        aria-current={selected ? "page" : undefined}
+                      >
+                        <Icon name={id} />
+                        {t(id as TextKey)}
+                        {selected && <span className="nav-dot" />}
+                      </button>
+                    );
+                  })}
                 </div>
               )
             );
           })}
         </nav>
         <div className="sidebar-bottom">
-          <div className="secure">
-            <Icon name="access" size={15} />
-            {t("secure")}
-          </div>
           <div className="sidebar-user">
             <span className="avatar">{user.fullName.slice(0, 1)}</span>
             <div>
@@ -713,7 +729,6 @@ function App() {
             <span className="muted">{t("workspace")}</span>
           </span>
           <div>
-            <span className="tag">{t("phase")}</span>
             <span className="top-avatar">{user.fullName.slice(0, 1)}</span>
           </div>
         </header>
@@ -760,6 +775,22 @@ function App() {
               </button>
             )}
           </div>
+          {sectionPages(sectionOf(currentPage)).length > 1 && (
+            <div className="discipline-tabs section-tabs" role="tablist">
+              {sectionPages(sectionOf(currentPage)).map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={currentPage === id}
+                  className={currentPage === id ? "primary" : "secondary"}
+                  onClick={() => open(id)}
+                >
+                  {t(id as TextKey)}
+                </button>
+              ))}
+            </div>
+          )}
           {loading && (
             <div className="status-message" role="status">
               {t("loading")}
@@ -778,7 +809,7 @@ function App() {
             </div>
           )}
           {currentPage === "overview" && (
-            <Overview user={user} onNavigate={setPage} />
+            <Overview user={user} onNavigate={open} />
           )}
           {currentPage === "messages" && <TelegramMessages />}
           {currentPage === "employees" && (
@@ -922,7 +953,7 @@ function App() {
                       className="text-button"
                       onClick={() => editCatalog(role)}
                     >
-                      {t("edit")}
+                      {t("editCatalogItem")}
                     </button>
                   </div>
                   <RoleDailyPay roleId={role.id} active={!!role.active} />
@@ -955,7 +986,7 @@ function App() {
                               className="text-button"
                               onClick={() => editCatalog(level, true)}
                             >
-                              {t("edit")}
+                              {t("editCatalogItem")}
                             </button>
                           </div>
                         </div>

@@ -743,6 +743,46 @@ describe("Administrator supplies a missing uniform choice", () => {
   });
 });
 
+describe("Confirming whole workdays", () => {
+  const yesterday = () => localDate(Date.now() - 86400000);
+  it("saves quality and uniform for several days atomically and returns the next revision", async () => {
+    await worked(today(), 0);
+    await worked(yesterday(), 0);
+    const d = await data();
+    const days = [today(), yesterday()].map((date) => ({
+      employeeId, date, quality: { rating: "good" }, uniform: { status: "approved", hasUniform: true },
+    }));
+    const response = await req("/discipline/days", "POST", { revision: d.revision, days });
+    expect(response.status, await response.clone().text()).toBe(200);
+    const saved = (await response.json()) as any;
+    const after = await data();
+    expect(saved).toMatchObject({ ok: true, saved: 2, revision: after.revision });
+    for (const day of after.days.filter((x: any) => [today(), yesterday()].includes(x.work_date))) {
+      expect(day.quality.rating).toBe("good");
+      expect(day.uniform).toMatchObject({ status: "approved", admin_has_uniform: 1 });
+    }
+    // The returned revision lets the next batch go straight through.
+    expect((await req("/discipline/days", "POST", { revision: saved.revision,
+      days: [{ employeeId, date: today(), quality: { rating: "excellent" } }] })).status).toBe(200);
+  });
+  it("rolls back every day when one day is invalid, and rejects stale revisions", async () => {
+    await worked(today(), 0);
+    let d = await data();
+    expect((await req("/discipline/days", "POST", { revision: d.revision, days: [
+      { employeeId, date: today(), quality: { rating: "good" } },
+      { employeeId, date: "2026-01-02", quality: { rating: "good" } },
+    ] })).status).toBe(400);
+    d = await data();
+    expect(d.days[0].quality).toBeNull();
+    expect((await req("/discipline/days", "POST", { revision: d.revision - 1,
+      days: [{ employeeId, date: today(), quality: { rating: "good" } }] })).status).toBe(409);
+    expect((await req("/discipline/days", "POST", { revision: d.revision,
+      days: [{ employeeId, date: today() }] })).status).toBe(400);
+    expect((await req("/discipline/days", "POST", { revision: d.revision,
+      days: [{ employeeId, date: today(), quality: { rating: "good" } }] }, employee)).status).toBe(403);
+  });
+});
+
 describe("Correcting uniform choices", () => {
   it("allows an audited correction before review and protects an administrator decision", async () => {
     await worked(today(), 0);

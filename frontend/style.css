@@ -3096,3 +3096,28 @@ label {
 .review-inbox .employee-review-summary { margin-bottom: 4px; }
 .review-inbox .employee-review-summary p { margin: 0; }
 
+/* Today / Settings tabs, one-form day review and routine bulk approval. */
+.section-tabs {
+  margin-bottom: 16px;
+}
+.day-review-choices {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-items: end;
+}
+.day-review-choices .text-button {
+  justify-self: start;
+}
+.bulk-approve {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.bulk-approve p {
+  margin: 0;
+  flex: 1 1 260px;
+}

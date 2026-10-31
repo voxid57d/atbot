@@ -4,6 +4,7 @@ import { MoreOptions } from "./more-options";
 import { EmployeeCards } from "./employee-cards";
 import { EmployeeVisibility } from "./employee-visibility";
 import { useEffect, useState } from "react";
+import { api } from "./api";
 import { Form, Field, ErrorNotice, useResource, hours } from "./ui";
 import { t } from "./text";
 import { formatMoney, localDate } from "../shared/domain";
@@ -183,8 +184,99 @@ export function UniformToday() {
     </section>
   );
 }
-function Reason() {
-  return <Field label="reviewReason" name="reason" />;
+// Optional notes stay behind a link; a note is required for negative or changed decisions.
+function Reason({ required = false }: { required?: boolean }) {
+  const [open, setOpen] = useState(false);
+  if (!required && !open)
+    return (
+      <button type="button" className="text-button" onClick={() => setOpen(true)}>
+        {t("addNote")}
+      </button>
+    );
+  return (
+    <label>
+      {t(required ? "noteRequired" : "reviewReason")}
+      <input name="reason" maxLength={1000} required={required} autoFocus={open} />
+    </label>
+  );
+}
+const uniformDefault = (d: Day) =>
+  d.uniform && d.uniform.status !== "pending"
+    ? d.uniform.status
+    : d.uniform?.declared_at && !d.uniform.declared_has_uniform
+      ? "rejected"
+      : "approved";
+const canApproveUniform = (d: Day) =>
+  !d.uniform?.declared_at || !!d.uniform.declared_has_uniform;
+// One form and one button for a pending workday. Defaults are the common outcome
+// (Good, uniform approved); nothing is saved until the administrator confirms.
+function DayReview({
+  d,
+  revision,
+  onSaved,
+  onTouched,
+}: {
+  d: Day;
+  revision: number;
+  onSaved: () => Promise<void>;
+  onTouched: () => void;
+}) {
+  const quality = d.qualityPending && !d.inProgress,
+    uniform = !d.uniform || d.uniform.status === "pending";
+  const [rating, setRating] = useState(d.quality?.rating ?? "good"),
+    [status, setStatus] = useState(uniformDefault(d));
+  if (!quality && !uniform) return null;
+  const negative = (quality && rating === "bad") || (uniform && status === "rejected");
+  return (
+    <Form
+      version={JSON.stringify([d.attendance_snapshot, d.quality, d.uniform])}
+      path="/discipline/days"
+      build={(f) => ({
+        revision,
+        reason: get(f, "reason"),
+        days: [
+          {
+            employeeId: d.employee_id,
+            date: d.work_date,
+            ...(quality ? { quality: { rating, comment: get(f, "reason") } } : {}),
+            ...(uniform
+              ? {
+                  uniform: {
+                    status,
+                    ...(!d.uniform?.declared_at ? { hasUniform: status === "approved" } : {}),
+                  },
+                }
+              : {}),
+          },
+        ],
+      })}
+      onSaved={onSaved}
+      submitLabel="confirmDay"
+    >
+      <div className="day-review-choices" onChange={onTouched}>
+        {quality && (
+          <label>
+            {t("qualityRating")}
+            <select name="rating" value={rating} onChange={(e) => setRating(e.target.value)}>
+              <option value="excellent">{t("excellent")}</option>
+              <option value="good">{t("good")}</option>
+              <option value="bad">{t("bad")}</option>
+            </select>
+          </label>
+        )}
+        {uniform && (
+          <label>
+            {t("uniformToday")}
+            <select name="uniform" value={status} onChange={(e) => setStatus(e.target.value)}>
+              {canApproveUniform(d) && <option value="approved">Approve / wearing uniform</option>}
+              <option value="rejected">{t("missingUniform")}</option>
+            </select>
+          </label>
+        )}
+        <Reason key={String(negative)} required={negative} />
+      </div>
+    </Form>
+  );
 }
 export function DisciplineScreen({
   admin = false,
@@ -258,6 +350,16 @@ export function DisciplineScreen({
     date: d.work_date,
     revision,
   });
+  const [touched, setTouched] = useState(new Set<string>());
+  const dayKey = (d: Day) => `${d.employee_id}:${d.work_date}`;
+  const uniformText = (d: Day) =>
+    d.uniform?.declared_at
+      ? d.uniform.declared_has_uniform
+        ? t("haveUniform")
+        : t("noUniform")
+      : d.uniform?.admin_has_uniform != null
+        ? `Recorded by administrator: ${d.uniform.admin_has_uniform ? "Wearing uniform" : "No uniform"}`
+        : t("noUniformDeclaration");
   const dayCard = (d: Day, pendingOnly: boolean) => {
     const quality = pendingOnly ? d.qualityPending : !!d.quality,
       uniform = pendingOnly ? !d.uniform || d.uniform.status === "pending" : !!d.uniform && d.uniform.status !== "pending";
@@ -278,6 +380,18 @@ export function DisciplineScreen({
           <p>Recorded duration: {hours(d.actualSeconds)} · Credited: {hours(d.regularSeconds + d.overtimeSeconds)} · Paid hours: {hours(d.paidSeconds)}</p>
         </div>
         <ShiftAttendanceDetails rows={d.shiftAttendance} />
+        {pendingOnly ? (
+          <>
+            {d.qualityPending && d.quality && <p>{t("qualityStale")}</p>}
+            {d.qualityPending && d.inProgress && <p className="notice">Review quality after the last shift ends and all attendance is closed.</p>}
+            {(!d.uniform || d.uniform.status === "pending") && <p>{t("uniformToday")}: {uniformText(d)}</p>}
+            {admin && !locked(d.work_date) && (
+              <DayReview d={d} revision={revision} onSaved={reload}
+                onTouched={() => setTouched((v) => new Set(v).add(dayKey(d)))} />
+            )}
+          </>
+        ) : (
+          <>
         {quality && (
           <details
             className="review-section"
@@ -323,7 +437,7 @@ export function DisciplineScreen({
                   required={false}
                   value={d.quality?.comment ?? ""}
                 />
-                <Reason />
+                <Reason required />
               </Form>
             )}
           </details>
@@ -337,15 +451,7 @@ export function DisciplineScreen({
               {t("uniformToday")} · {d.uniform?.status ?? t("pending")}
               {!pendingOnly && !locked(d.work_date) ? " · Change review" : ""}
             </summary>
-            <p>
-              {d.uniform?.declared_at
-                ? d.uniform.declared_has_uniform
-                  ? t("haveUniform")
-                  : t("noUniform")
-                : d.uniform?.admin_has_uniform != null
-                  ? `Recorded by administrator: ${d.uniform.admin_has_uniform ? "Wearing uniform" : "No uniform"}`
-                  : t("noUniformDeclaration")}
-            </p>
+            <p>{uniformText(d)}</p>
             <p>{d.uniform?.decision_reason}</p>
             {admin && !locked(d.work_date) && (
               <Form
@@ -364,19 +470,24 @@ export function DisciplineScreen({
               >
                 <label>
                   {t("decision")}
-                  <select name="status" required defaultValue={d.uniform?.status !== "pending" ? d.uniform?.status ?? "" : ""}>
-                    <option value="" disabled>Choose a decision</option>
+                  <select
+                    name="status"
+                    required
+                    defaultValue={uniformDefault(d)}
+                  >
                     {d.uniform?.status !== "pending" && d.uniform && <option value="pending">{t("resetUniform")}</option>}
-                    {(!d.uniform?.declared_at || !!d.uniform.declared_has_uniform) && (
+                    {canApproveUniform(d) && (
                         <option value="approved">Approve / wearing uniform</option>
                       )}
                     <option value="rejected">{t("missingUniform")}</option>
                   </select>
                 </label>
-                <Reason />
+                <Reason required />
               </Form>
             )}
           </details>
+        )}
+          </>
         )}
       </article>
     );
@@ -510,6 +621,22 @@ export function DisciplineScreen({
     group.tasks.push(task);
     grouped.set(key, group);
   }
+  // Days that need nothing beyond routine quality/uniform decisions, still on their defaults.
+  const bulkDays = [...grouped.values()].flatMap((group) => {
+    const d = selectedDays.find((x) => x.employee_id === group.employeeId && x.work_date === group.date);
+    if (!d || locked(d.work_date) || touched.has(dayKey(d))) return [];
+    if (!group.tasks.every((task) => ["quality_review", "uniform_review"].includes(task.kind))) return [];
+    const quality = d.qualityPending && !d.inProgress,
+      uniform = !d.uniform || d.uniform.status === "pending";
+    if (uniform && !canApproveUniform(d)) return [];
+    if (!quality && !uniform) return [];
+    return [{
+      employeeId: d.employee_id,
+      date: d.work_date,
+      ...(quality ? { quality: { rating: "good" } } : {}),
+      ...(uniform ? { uniform: { status: "approved", ...(!d.uniform?.declared_at ? { hasUniform: true } : {}) } } : {}),
+    }];
+  });
   function pendingDay(group: { employeeId: string; date: string; tasks: ReviewTask[] }) {
     const day = selectedDays.find((d) => d.employee_id === group.employeeId && d.work_date === group.date);
     return <article className="review-day" data-review-date={group.date}>
@@ -558,6 +685,7 @@ export function DisciplineScreen({
           <button type="button" className={tab === "history" ? "primary" : "secondary"} onClick={() => setTab("history")}>History</button>
         </div>}
         {admin && tab === "queue" && <section className="review-employee-section">
+          <BulkApprove days={bulkDays} revision={revision} onDone={reload} />
           <EmployeeCards name={name} collapsible expanded={!!employeeFilter}
             summary={(id) => <p>Pending {selectedTasks.filter((task) => task.employeeId === id).length} decisions</p>}
             rows={[...grouped.values()].map((group) => ({ employeeId: group.employeeId, key: group.date, content: pendingDay(group) }))} />
@@ -599,6 +727,50 @@ export function DisciplineScreen({
       </>}
     </div>
   );
+}
+
+type BulkDay = { employeeId: string; date: string; quality?: { rating: string }; uniform?: { status: string; hasUniform?: boolean } };
+// Saves routine days in batches of five (the API limit), carrying the returned revision forward.
+function BulkApprove({ days, revision, onDone }: { days: BulkDay[]; revision: number; onDone: () => Promise<void> }) {
+  const [confirming, setConfirming] = useState(false),
+    [progress, setProgress] = useState<number | null>(null),
+    [error, setError] = useState("");
+  if (!days.length && progress === null && !error) return null;
+  async function run() {
+    setConfirming(false);
+    setError("");
+    let current = revision, saved = 0;
+    setProgress(0);
+    try {
+      for (let i = 0; i < days.length; i += 5) {
+        const batch = days.slice(i, i + 5);
+        const result = await api<{ revision: number }>("/discipline/days", "POST",
+          { revision: current, reason: "", days: batch }, crypto.randomUUID());
+        current = result.revision;
+        saved += batch.length;
+        setProgress(saved);
+      }
+    } catch (e) {
+      setError(`${saved} of ${days.length} days saved. ${(e as Error).message}`);
+    } finally {
+      setProgress(null);
+      await onDone();
+    }
+  }
+  return <div className="panel attendance-panel bulk-approve">
+    <ErrorNotice error={error} />
+    {progress !== null ? <p role="status">Saving {progress} of {days.length} days…</p>
+      : confirming ? <>
+        <p>Confirm {days.length} {days.length === 1 ? "day" : "days"} as Good quality with uniform approved? Days with lateness, early departures, requests, a missing uniform or a choice you changed are left for you to review.</p>
+        <div className="modal-actions">
+          <button type="button" className="secondary" onClick={() => setConfirming(false)}>{t("cancel")}</button>
+          <button type="button" className="primary" onClick={() => void run()}>Confirm all ({days.length})</button>
+        </div>
+      </> : !!days.length && <>
+        <p>{days.length} routine {days.length === 1 ? "day needs" : "days need"} only quality and uniform confirmation.</p>
+        <button type="button" className="primary" onClick={() => setConfirming(true)}>Approve all as shown ({days.length})</button>
+      </>}
+  </div>;
 }
 
 function PolicyForm({

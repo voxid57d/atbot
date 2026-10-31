@@ -393,21 +393,23 @@ disciplineRoutes.post("/discipline/uniform", async (c) => {
     { ok: true },
   );
 });
-disciplineRoutes.post("/discipline/quality", async (c) => {
-  requirePermission(c, "attendance.manage");
-  const replay = await replayMutation(c);
-  if (replay) return replay;
-  const i = await body(
-    c,
-    z
-      .object({
-        ...reviewBase,
-        rating: z.enum(["excellent", "good", "bad"]),
-        comment: z.string().trim().max(1000).default(""),
-        reason,
-      })
-      .strict(),
-  );
+const qualityInput = z.object({
+  ...reviewBase,
+  rating: z.enum(["excellent", "good", "bad"]),
+  comment: z.string().trim().max(1000).default(""),
+  reason,
+});
+const uniformInput = z.object({
+  ...reviewBase,
+  status: z.enum(["approved", "rejected", "pending"]),
+  hasUniform: z.boolean().optional(),
+  reason,
+});
+// Validation and statements for one quality review; the caller adds the revision guard.
+async function qualityStatements(
+  c: AppContext,
+  i: z.infer<typeof qualityInput>,
+) {
   const w = await workday(c, i.employeeId, i.date);
   await unlocked(c, i.date);
   const before = await c.env.DB.prepare(
@@ -415,58 +417,42 @@ disciplineRoutes.post("/discipline/quality", async (c) => {
   )
     .bind(i.employeeId, i.date)
     .first();
-  return mutate(
-    c,
-    [
-      guard(c, i.revision),
-      c.env.DB.prepare(
-        "INSERT INTO daily_work_reviews(employee_id,work_date,rating,comment,attendance_snapshot,reviewed_by,reviewed_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(employee_id,work_date) DO UPDATE SET rating=excluded.rating,comment=excluded.comment,attendance_snapshot=excluded.attendance_snapshot,reviewed_by=excluded.reviewed_by,reviewed_at=excluded.reviewed_at",
-      ).bind(
-        i.employeeId,
-        i.date,
-        i.rating,
-        i.comment,
-        w.attendance_snapshot,
-        c.get("identity").id,
-        now(),
-      ),
-      audit(
-        c,
-        "quality.review",
-        `${i.employeeId}:${i.date}`,
-        before,
-        i,
-        i.reason,
-      ),
-      ...(i.rating === "bad"
-        ? [
-            notify(
-              c.env.DB,
-              `quality:${i.employeeId}:${i.date}:${i.revision}`,
-              `A bad work-quality review was confirmed for ${i.date}. Review your discipline screen for details.`,
-              i.employeeId,
-            ),
-          ]
-        : []),
-    ],
-    { ok: true },
-  );
-});
-disciplineRoutes.post("/discipline/uniform/decision", async (c) => {
-  requirePermission(c, "attendance.manage");
-  const replay = await replayMutation(c);
-  if (replay) return replay;
-  const i = await body(
-    c,
-    z
-      .object({
-        ...reviewBase,
-        status: z.enum(["approved", "rejected", "pending"]),
-        hasUniform: z.boolean().optional(),
-        reason,
-      })
-      .strict(),
-  );
+  return [
+    c.env.DB.prepare(
+      "INSERT INTO daily_work_reviews(employee_id,work_date,rating,comment,attendance_snapshot,reviewed_by,reviewed_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(employee_id,work_date) DO UPDATE SET rating=excluded.rating,comment=excluded.comment,attendance_snapshot=excluded.attendance_snapshot,reviewed_by=excluded.reviewed_by,reviewed_at=excluded.reviewed_at",
+    ).bind(
+      i.employeeId,
+      i.date,
+      i.rating,
+      i.comment,
+      w.attendance_snapshot,
+      c.get("identity").id,
+      now(),
+    ),
+    audit(
+      c,
+      "quality.review",
+      `${i.employeeId}:${i.date}`,
+      before,
+      i,
+      i.reason,
+    ),
+    ...(i.rating === "bad"
+      ? [
+          notify(
+            c.env.DB,
+            `quality:${i.employeeId}:${i.date}:${i.revision}`,
+            `A bad work-quality review was confirmed for ${i.date}. Review your discipline screen for details.`,
+            i.employeeId,
+          ),
+        ]
+      : []),
+  ];
+}
+async function uniformStatements(
+  c: AppContext,
+  i: z.infer<typeof uniformInput>,
+) {
   await workday(c, i.employeeId, i.date);
   await unlocked(c, i.date);
   const before = await c.env.DB.prepare(
@@ -486,42 +472,136 @@ disciplineRoutes.post("/discipline/uniform/decision", async (c) => {
       message:
         "Record the missing uniform choice before approving, or review the employee's declaration.",
     });
+  return [
+    c.env.DB.prepare(
+      "INSERT INTO daily_uniform_confirmations(employee_id,work_date,status,decision_reason,reviewed_by,reviewed_at,admin_has_uniform) VALUES(?,?,?,?,?,?,?) ON CONFLICT(employee_id,work_date) DO UPDATE SET status=excluded.status,decision_reason=excluded.decision_reason,reviewed_by=excluded.reviewed_by,reviewed_at=excluded.reviewed_at,admin_has_uniform=excluded.admin_has_uniform",
+    ).bind(
+      i.employeeId,
+      i.date,
+      i.status,
+      i.reason,
+      i.status === "pending" ? null : c.get("identity").id,
+      i.status === "pending" ? null : now(),
+      i.status === "pending" ? null : (i.hasUniform === undefined ? before?.admin_has_uniform ?? null : Number(i.hasUniform)),
+    ),
+    audit(
+      c,
+      "uniform.review",
+      `${i.employeeId}:${i.date}`,
+      before,
+      i,
+      i.reason,
+    ),
+    ...(i.status === "rejected"
+      ? [
+          notify(
+            c.env.DB,
+            `uniform-rejected:${i.employeeId}:${i.date}:${i.revision}`,
+            `A uniform violation was confirmed for ${i.date}. Open your discipline screen for the reason.`,
+            i.employeeId,
+          ),
+        ]
+      : []),
+  ];
+}
+disciplineRoutes.post("/discipline/quality", async (c) => {
+  requirePermission(c, "attendance.manage");
+  const replay = await replayMutation(c);
+  if (replay) return replay;
+  const i = await body(c, qualityInput.strict());
   return mutate(
     c,
-    [
-      guard(c, i.revision),
-      c.env.DB.prepare(
-        "INSERT INTO daily_uniform_confirmations(employee_id,work_date,status,decision_reason,reviewed_by,reviewed_at,admin_has_uniform) VALUES(?,?,?,?,?,?,?) ON CONFLICT(employee_id,work_date) DO UPDATE SET status=excluded.status,decision_reason=excluded.decision_reason,reviewed_by=excluded.reviewed_by,reviewed_at=excluded.reviewed_at,admin_has_uniform=excluded.admin_has_uniform",
-      ).bind(
-        i.employeeId,
-        i.date,
-        i.status,
-        i.reason,
-        i.status === "pending" ? null : c.get("identity").id,
-        i.status === "pending" ? null : now(),
-        i.status === "pending" ? null : (i.hasUniform === undefined ? before?.admin_has_uniform ?? null : Number(i.hasUniform)),
-      ),
-      audit(
-        c,
-        "uniform.review",
-        `${i.employeeId}:${i.date}`,
-        before,
-        i,
-        i.reason,
-      ),
-      ...(i.status === "rejected"
-        ? [
-            notify(
-              c.env.DB,
-              `uniform-rejected:${i.employeeId}:${i.date}:${i.revision}`,
-              `A uniform violation was confirmed for ${i.date}. Open your discipline screen for the reason.`,
-              i.employeeId,
-            ),
-          ]
-        : []),
-    ],
+    [guard(c, i.revision), ...(await qualityStatements(c, i))],
     { ok: true },
   );
+});
+disciplineRoutes.post("/discipline/uniform/decision", async (c) => {
+  requirePermission(c, "attendance.manage");
+  const replay = await replayMutation(c);
+  if (replay) return replay;
+  const i = await body(c, uniformInput.strict());
+  return mutate(
+    c,
+    [guard(c, i.revision), ...(await uniformStatements(c, i))],
+    { ok: true },
+  );
+});
+// Saves quality and/or uniform for one or more workdays atomically: "Confirm day" sends
+// one day, "Approve all as shown" sends many. One revision guard covers the whole batch.
+disciplineRoutes.post("/discipline/days", async (c) => {
+  requirePermission(c, "attendance.manage");
+  const replay = await replayMutation(c);
+  if (replay) return replay;
+  const i = await body(
+    c,
+    z
+      .object({
+        revision,
+        reason,
+        days: z
+          .array(
+            z
+              .object({
+                employeeId,
+                date,
+                quality: z
+                  .object({
+                    rating: qualityInput.shape.rating,
+                    comment: qualityInput.shape.comment,
+                  })
+                  .strict()
+                  .optional(),
+                uniform: z
+                  .object({
+                    status: uniformInput.shape.status,
+                    hasUniform: z.boolean().optional(),
+                  })
+                  .strict()
+                  .optional(),
+              })
+              .strict()
+              .refine((d) => d.quality || d.uniform, "Nothing to save"),
+          )
+          .min(1)
+          // Up to six lookups per day; five days stay under the Workers Free limit of
+          // 50 D1 queries per request.
+          .max(5),
+      })
+      .strict(),
+  );
+  if (
+    new Set(i.days.map((d) => `${d.employeeId}:${d.date}`)).size !==
+    i.days.length
+  )
+    throw new HTTPException(400, { message: "Each workday can appear once." });
+  const statements: D1PreparedStatement[] = [guard(c, i.revision)];
+  for (const d of i.days) {
+    const common = {
+      employeeId: d.employeeId,
+      date: d.date,
+      revision: i.revision,
+      reason: i.reason,
+    };
+    if (d.quality)
+      statements.push(
+        ...(await qualityStatements(c, { ...common, ...d.quality })),
+      );
+    if (d.uniform)
+      statements.push(
+        ...(await uniformStatements(c, { ...common, ...d.uniform })),
+      );
+  }
+  // The guard adds one and each quality/uniform write adds one through its revision trigger,
+  // so the client can send its next batch without reloading the whole review snapshot.
+  const writes = i.days.reduce(
+    (n, d) => n + Number(!!d.quality) + Number(!!d.uniform),
+    0,
+  );
+  return mutate(c, statements, {
+    ok: true,
+    saved: i.days.length,
+    revision: i.revision + 1 + writes,
+  });
 });
 disciplineRoutes.post("/discipline/violation/decision", async (c) => {
   requirePermission(c, "attendance.manage");
