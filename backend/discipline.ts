@@ -23,6 +23,7 @@ import {
 import { getShiftsRange } from "./schedules";
 import { openCheckoutTimings } from "./checkout";
 import { disciplineReviewTasks } from "../shared/review-tasks";
+import { paidHourSeconds } from "../shared/payroll";
 import {
   calculateAttendance,
   sessionsForRegularShift,
@@ -223,7 +224,7 @@ export async function disciplineSnapshot(
       ...calc,
       shifts: dayShifts,
       sessions: daySessions,
-      paidSeconds: Math.floor((calc.regularSeconds + calc.overtimeSeconds) / 3600) * 3600,
+      paidSeconds: paidHourSeconds(calc.regularSeconds + calc.overtimeSeconds),
       inProgress: w.open_sessions > 0 || dayShifts.some((s) => s.status === "scheduled" && s.end_at > now()),
       quality: q ?? null,
       qualityPending: !q || q.attendance_snapshot !== w.attendance_snapshot,

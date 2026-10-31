@@ -8,6 +8,14 @@ import {
   type Interval,
   union,
 } from "./attendance";
+// Salary counts whole hours per day. Time within this grace of the next whole hour
+// counts as that hour (4h 55m pays 5h; 4h 54m pays 4h).
+export const PAID_HOUR_GRACE_SECONDS = 5 * 60;
+export function paidHourSeconds(eligibleSeconds: number) {
+  return (
+    Math.floor((eligibleSeconds + PAID_HOUR_GRACE_SECONDS) / 3600) * 3600
+  );
+}
 // Count all payable intervals in time order, resetting the threshold each day.
 // Regular and approved overtime retain their labels; the threshold replaces their rate.
 export function dailyEarnings(
@@ -33,7 +41,14 @@ export function dailyEarnings(
     (sum, i) => sum + i.end - i.start,
     0,
   );
-  const paidSeconds = Math.floor(eligibleSeconds / 3600) * 3600;
+  const paidSeconds = paidHourSeconds(eligibleSeconds);
+  // Grace minutes are paid at the rate of the day's last payable interval.
+  if (paidSeconds > eligibleSeconds && intervals.length)
+    intervals[intervals.length - 1] = {
+      ...intervals[intervals.length - 1],
+      end:
+        intervals[intervals.length - 1].end + paidSeconds - eligibleSeconds,
+    };
   for (const interval of intervals) {
     const paidEnd =
       interval.start +
@@ -76,7 +91,7 @@ export function dailyEarnings(
     overtime,
     thresholdSeconds,
     paidSeconds,
-    discardedSeconds: eligibleSeconds - paidSeconds,
+    discardedSeconds: Math.max(0, eligibleSeconds - paidSeconds),
   };
 }
 export type PayrollSession = Session & { work_date: string };
@@ -87,9 +102,8 @@ export function additionalPaidSeconds(
   pendingSeconds: number,
 ) {
   return (
-    (Math.floor((eligibleSeconds + pendingSeconds) / 3600) -
-      Math.floor(eligibleSeconds / 3600)) *
-    3600
+    paidHourSeconds(eligibleSeconds + pendingSeconds) -
+    paidHourSeconds(eligibleSeconds)
   );
 }
 export type PayrollApproval = {

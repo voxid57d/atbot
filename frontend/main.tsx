@@ -925,6 +925,25 @@ function App() {
                                 {t("relink")}
                               </button>
                             )}
+                            {user.access === "super_admin" &&
+                              !e.active &&
+                              e.access === "employee" && (
+                                <button
+                                  onClick={() =>
+                                    setDialog({
+                                      title: `${t("deletePermanently")} · ${e.full_name}`,
+                                      help: t("deleteEmployeeHelp"),
+                                      path: `/employees/${e.id}/delete`,
+                                      fields: [
+                                        { key: "confirmName", label: "confirmFullName" },
+                                        reasonField,
+                                      ],
+                                    })
+                                  }
+                                >
+                                  {t("deletePermanently")}
+                                </button>
+                              )}
                           </div>
                         </details>
                       </div>

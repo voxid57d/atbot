@@ -610,6 +610,54 @@ describe("Phase 1 API with real local D1", () => {
       ).status,
     ).toBe(400);
   });
+  it("permanently deletes a disabled employee without history and frees the Telegram ID", async () => {
+    const e = await setupEmployee();
+    const remove = (confirmName: string, cookie = rootCookie) =>
+      request(`/employees/${e.id}/delete`, "POST", { confirmName, reason: "Test account" }, cookie);
+    expect((await remove("Employee One")).status).toBe(400);
+    await request(`/employees/${e.id}`, "PATCH", { active: false, reason: "" });
+    expect((await remove("Employee 1")).status).toBe(400);
+    const deleted = await remove("Employee One");
+    expect(deleted.status, await deleted.clone().text()).toBe(200);
+    expect(
+      await env.DB.prepare("SELECT count(*) n FROM employees WHERE id=?").bind(e.id).first(),
+    ).toEqual({ n: 0 });
+    expect(
+      await env.DB.prepare("SELECT count(*) n FROM users WHERE id=?").bind(e.userId).first(),
+    ).toEqual({ n: 0 });
+    expect(
+      await env.DB.prepare("SELECT reason FROM audit_logs WHERE action='employee.delete' AND entity_id=?")
+        .bind(e.id).first(),
+    ).toEqual({ reason: "Test account" });
+    const again = await request("/employees", "POST", {
+      fullName: "Employee One", telegramId: "200001", levelId: e.levelId, activationDate: today(),
+    });
+    expect(again.status).toBe(201);
+  });
+  it("keeps employees who have history and refuses deletion to non-owners", async () => {
+    const e = await setupEmployee();
+    await request(`/employees/${e.id}`, "PATCH", { active: false, reason: "" });
+    // Any record that references the person, here an audit entry they authored, blocks deletion.
+    await env.DB.prepare(
+      "INSERT INTO audit_logs(id,actor_id,action,entity_id,created_at) VALUES('a1',?,'request.create',?,1)",
+    ).bind(e.userId, e.id).run();
+    const kept = await request(`/employees/${e.id}/delete`, "POST", { confirmName: "Employee One", reason: "" });
+    expect(kept.status).toBe(409);
+    expect(((await kept.json()) as { error: string }).error).toContain("must stay");
+    expect(
+      await env.DB.prepare("SELECT count(*) n FROM employees WHERE id=?").bind(e.id).first(),
+    ).toEqual({ n: 1 });
+    const manager = (await (await request("/employees", "POST", {
+      fullName: "Manager", telegramId: "200003", levelId: e.levelId, activationDate: today(),
+    })).json()) as { userId: string };
+    await request(`/admin/users/${manager.userId}/access`, "POST", {
+      access: "admin", permissions: ["employees.manage"], reason: "",
+    });
+    const managerLogin = await login(200003);
+    expect(
+      (await request(`/employees/${e.id}/delete`, "POST", { confirmName: "Employee One", reason: "" }, managerLogin.cookie)).status,
+    ).toBe(403);
+  });
   it("redirects app pages from the old host but keeps reception, assets and the webhook", async () => {
     env.APP_ENV = "production";
     env.APP_ORIGIN = "https://staff.example";

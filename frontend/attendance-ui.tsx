@@ -336,8 +336,9 @@ export function EmployeeAttendance() {
         </div>
         <p>
           Only completed hours count toward salary, after combining each day's
-          credited regular time and approved overtime. Leftover minutes do not
-          carry forward. {data.period.from} — {data.period.to} ·{" "}
+          credited regular time and approved overtime. Time within 5 minutes of
+          the next hour counts as that hour; other leftover minutes do not carry
+          forward. {data.period.from} — {data.period.to} ·{" "}
           {t("estimateHelp")} {data.summary.pending && t("pendingHelp")}
         </p>
         <section className="panel">

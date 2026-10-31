@@ -316,6 +316,10 @@ export const text = {
   actions: "Actions",
   edit: "Edit account",
   editCatalogItem: "Edit",
+  deletePermanently: "Delete permanently",
+  deleteEmployeeHelp:
+    "For test accounts and people who never worked. This cannot be undone. If the employee has attendance, requests, reviews or payroll records, deletion is refused and they stay disabled so salary and audit history remain intact.",
+  confirmFullName: "Type the employee's full name to confirm",
   history: "Rate history",
   relink: "Change Telegram",
   manage: "Manage access",

@@ -169,8 +169,9 @@ function Breakdown({
       {entry.paidSeconds !== undefined && (
         <p>
           Regular credited time and approved overtime are combined each day.
-          Only completed hours count toward salary; leftover minutes do not
-          carry forward.
+          Only completed hours count toward salary. Time within 5 minutes of the
+          next hour counts as that hour; other leftover minutes do not carry
+          forward.
         </p>
       )}
       <details className="review-section">

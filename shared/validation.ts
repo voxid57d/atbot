@@ -43,6 +43,9 @@ export const employeeUpdateSchema = z
     "No changes supplied",
   );
 export const linkSchema = z.object({ telegramId, reason }).strict();
+export const deleteEmployeeSchema = z
+  .object({ confirmName: z.string().max(100), reason })
+  .strict();
 export const roleSchema = z.object({ name }).strict();
 export const levelSchema = z
   .object({

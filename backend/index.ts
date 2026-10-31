@@ -34,6 +34,7 @@ import {
   rateSchema,
   catalogUpdateSchema,
   accessSchema,
+  deleteEmployeeSchema,
 } from "../shared/validation";
 import {
   identity,
@@ -515,6 +516,68 @@ app.post("/api/employees/:id/telegram", async (c) => {
     ],
     { ok: true },
   );
+});
+// Permanently removes a disabled employee who never accumulated work or pay history,
+// such as a test account. Only setup rows are deleted; any attendance, request, review,
+// payroll or audit row still referencing the person makes the foreign keys refuse it.
+app.post("/api/employees/:id/delete", async (c) => {
+  superAdmin(c);
+  const input = await body(c, deleteEmployeeSchema),
+    id = c.req.param("id");
+  const before = await c.env.DB.prepare(
+    "SELECT e.id,e.user_id,u.full_name,u.telegram_id,u.access,u.active,e.activation_date,e.deactivation_date FROM employees e JOIN users u ON u.id=e.user_id WHERE e.id=?",
+  )
+    .bind(id)
+    .first<{ user_id: string; full_name: string; access: string; active: number }>();
+  if (!before) throw new HTTPException(404, { message: "Employee not found." });
+  if (before.active || before.access !== "employee")
+    throw new HTTPException(400, {
+      message: "Disable the employee and remove any admin access before deleting.",
+    });
+  if (input.confirmName.trim() !== before.full_name)
+    throw new HTTPException(400, {
+      message: "Type the employee's full name exactly to confirm.",
+    });
+  const kept = new HTTPException(409, {
+    message:
+      "This employee has attendance, requests, reviews or payroll records, so they must stay for salary and audit history. Keep them disabled; disabled employees are hidden unless you choose to show them.",
+  });
+  if (
+    await c.env.DB.prepare(
+      "SELECT 1 FROM payroll_snapshots WHERE instr(payload_json,?)>0 LIMIT 1",
+    )
+      .bind(id)
+      .first()
+  )
+    throw kept;
+  const user = before.user_id;
+  try {
+    return await mutate(
+      c,
+      [
+        ...[
+          ["shift_overrides", "employee_id", id],
+          ["weekly_schedules", "employee_id", id],
+          ["scheduled_shifts", "employee_id", id],
+          ["employee_role_history", "employee_id", id],
+          ["notification_outbox", "user_id", user],
+          ["telegram_chats", "user_id", user],
+          ["auth_sessions", "user_id", user],
+          ["idempotency_keys", "actor_id", user],
+          ["admin_permissions", "user_id", user],
+          ["employees", "id", id],
+          ["users", "id", user],
+        ].map(([table, column, value]) =>
+          c.env.DB.prepare(`DELETE FROM ${table} WHERE ${column}=?`).bind(value),
+        ),
+        audit(c, "employee.delete", id, before, null, input.reason),
+      ],
+      { ok: true },
+    );
+  } catch (error) {
+    if (String(error).includes("FOREIGN KEY constraint")) throw kept;
+    throw error;
+  }
 });
 app.get("/api/employees/:id/history", async (c) => {
   requirePermission(c, "salary.manage");
