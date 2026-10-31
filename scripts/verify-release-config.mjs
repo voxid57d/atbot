@@ -25,7 +25,7 @@ assert.equal(config.workers_dev, true);
 assert.equal(config.vars.NOTIFICATIONS_ENABLED, "true");
 assert.deepEqual(config.triggers.crons, ["* * * * *"]);
 assert.equal(config.assets.binding, "ASSETS");
-assert.deepEqual(config.assets.run_worker_first, ["/api/*"]);
+assert.deepEqual(config.assets.run_worker_first, ["/api/*", "/"]);
 assert.equal(config.observability.enabled, true);
 for (const key of [
   "TELEGRAM_BOT_TOKEN",
