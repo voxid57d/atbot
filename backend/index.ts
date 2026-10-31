@@ -419,9 +419,22 @@ app.patch("/api/employees/:id", async (c) => {
     "SELECT e.*,u.full_name,u.active,u.access FROM employees e JOIN users u ON u.id=e.user_id WHERE e.id=?",
   )
     .bind(id)
-    .first<{ user_id: string; access: string; activation_date: string }>();
+    .first<{
+      user_id: string;
+      access: string;
+      activation_date: string;
+      active: number;
+    }>();
   if (!before) throw new HTTPException(404, { message: "Employee not found." });
   if (before.access !== "employee") superAdmin(c);
+  // An unchanged status must not reset the end date or revoke sessions.
+  if (input.active === !!before.active) delete input.active;
+  if (
+    input.fullName === undefined &&
+    input.active === undefined &&
+    input.levelId === undefined
+  )
+    throw new HTTPException(400, { message: "No changes supplied." });
   const updates: D1PreparedStatement[] = [];
   if (input.fullName !== undefined)
     updates.push(
@@ -718,6 +731,18 @@ app.route("/api", notificationRoutes);
 app.route("/api", rolePayRoutes);
 app.all("/api/*", (c) => c.json({ error: "API route not found." }, 404));
 app.all("*", async (c) => {
+  // Old Telegram buttons still open the workers.dev host, where every save fails the
+  // origin check. Send app pages to APP_ORIGIN; the URL fragment carrying Telegram's
+  // launch data survives the redirect. Reception displays keep their host-bound pairing.
+  const url = new URL(c.req.url),
+    origin = new URL(c.env.APP_ORIGIN);
+  if (
+    !isLocalDevelopment(c) &&
+    url.host !== origin.host &&
+    !/^\/(reception|assets|brand)\//.test(url.pathname + "/") &&
+    ["GET", "HEAD"].includes(c.req.method)
+  )
+    return c.redirect(origin.origin + url.pathname + url.search, 302);
   const response = await c.env.ASSETS.fetch(c.req.raw);
   const headers = new Headers(response.headers);
   headers.set("X-Content-Type-Options", "nosniff");

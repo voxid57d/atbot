@@ -476,6 +476,17 @@ export async function deliverNotifications(
 export async function scheduledNotifications(env: Bindings) {
   // Attendance closure runs even when Telegram delivery is disabled.
   await automaticCheckout(env.DB);
+  // Hourly housekeeping: retries reuse an idempotency key within seconds, and Telegram
+  // stops redelivering an update long before 30 days, so older rows only add storage.
+  if (now() % 3600 < 60)
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM idempotency_keys WHERE created_at<?").bind(
+        now() - 7 * 86400,
+      ),
+      env.DB.prepare(
+        "DELETE FROM notification_outbox WHERE created_at<? AND status IN ('sent','failed','uncertain') AND event_key LIKE 'webhook:%'",
+      ).bind(now() - 30 * 86400),
+    ]);
   if (env.NOTIFICATIONS_ENABLED !== "true") return;
   await env.DB.prepare(
     "DELETE FROM notification_outbox WHERE created_at<? AND status IN ('sent','failed','uncertain') AND event_key NOT LIKE 'forgotten%' AND event_key NOT LIKE 'webhook:%'",

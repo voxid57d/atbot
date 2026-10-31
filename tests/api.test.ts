@@ -564,6 +564,69 @@ describe("Phase 1 API with real local D1", () => {
     ).run();
     expect((await login(100001)).response.status).toBe(403);
   });
+  it("renames without revoking sessions or touching an unchanged status", async () => {
+    const e = await setupEmployee();
+    const auth = await login(200001);
+    expect(
+      (
+        await request(`/employees/${e.id}`, "PATCH", {
+          fullName: "Employee Renamed",
+          active: true,
+          reason: "",
+        })
+      ).status,
+    ).toBe(200);
+    expect((await request("/me", "GET", undefined, auth.cookie)).status).toBe(
+      200,
+    );
+    await request(`/employees/${e.id}`, "PATCH", { active: false, reason: "" });
+    await env.DB.prepare(
+      "UPDATE employees SET activation_date='2026-01-01',deactivation_date='2026-01-15' WHERE id=?",
+    )
+      .bind(e.id)
+      .run();
+    expect(
+      (
+        await request(`/employees/${e.id}`, "PATCH", {
+          fullName: "Employee Former",
+          active: false,
+          reason: "",
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      await env.DB.prepare(
+        "SELECT deactivation_date FROM employees WHERE id=?",
+      )
+        .bind(e.id)
+        .first(),
+    ).toEqual({ deactivation_date: "2026-01-15" });
+    expect(
+      (
+        await request(`/employees/${e.id}`, "PATCH", {
+          active: false,
+          reason: "",
+        })
+      ).status,
+    ).toBe(400);
+  });
+  it("redirects app pages from the old host but keeps reception, assets and the webhook", async () => {
+    env.APP_ENV = "production";
+    env.APP_ORIGIN = "https://staff.example";
+    const old = "https://old.workers.example";
+    const page = await app.request(old + "/?tab=1", {}, env);
+    expect(page.status).toBe(302);
+    expect(page.headers.get("Location")).toBe("https://staff.example/?tab=1");
+    for (const path of ["/reception/", "/assets/index.js", "/brand/icon.svg"])
+      expect((await app.request(old + path, {}, env)).status).toBe(200);
+    expect((await app.request("https://staff.example/", {}, env)).status).toBe(
+      200,
+    );
+    expect(
+      (await app.request(old + "/api/telegram/webhook", { method: "POST" }, env))
+        .status,
+    ).toBe(403);
+  });
   it("blocks not-yet-active employee login", async () => {
     const { levelId } = await setupEmployee();
     await request("/employees", "POST", {

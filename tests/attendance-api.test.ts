@@ -242,6 +242,20 @@ describe("Automatic daily checkout", () => {
     finally { spy.mockRestore(); }
     expect((await row()).check_out).toBe(cutoff());
   });
+  it("hourly removes expired idempotency keys and old webhook replies only", async () => {
+    const at = cutoff(), user = (await env.DB.prepare("SELECT id FROM users LIMIT 1").first<any>()).id;
+    await env.DB.batch([
+      ...[["old-key-000000000", at - 8 * 86400], ["new-key-000000000", at - 86400]].map(([key, created]) =>
+        env.DB.prepare("INSERT INTO idempotency_keys(actor_id,key,fingerprint,response_json,status,created_at) VALUES(?,?,'f','{}',200,?)").bind(user, key, created)),
+      ...[["webhook:1", at - 31 * 86400], ["webhook:2", at - 86400], ["forgotten:1", at - 31 * 86400]].map(([key, created]) =>
+        env.DB.prepare("INSERT INTO notification_outbox(id,event_key,user_id,text,next_attempt_at,created_at,status) VALUES(?,?,?,'x',?,?,'sent')").bind(crypto.randomUUID(), key, user, created, created)),
+    ]);
+    const spy = vi.spyOn(Date, "now").mockReturnValue(at * 1000);
+    try { await scheduledNotifications({ ...env, NOTIFICATIONS_ENABLED: "false" }); }
+    finally { spy.mockRestore(); }
+    expect((await env.DB.prepare("SELECT key FROM idempotency_keys WHERE key LIKE '%-key-%'").all<any>()).results.map((r) => r.key)).toEqual(["new-key-000000000"]);
+    expect((await env.DB.prepare("SELECT event_key FROM notification_outbox WHERE event_key IN ('webhook:1','webhook:2','forgotten:1') ORDER BY event_key").all<any>()).results.map((r) => r.event_key)).toEqual(["forgotten:1", "webhook:2"]);
+  });
   it("keeps a concurrent employee checkout or the automatic cutoff as one atomic close", async () => {
     await insert();
     const [response] = await Promise.all([

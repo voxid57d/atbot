@@ -326,6 +326,7 @@ export const text = {
   "attendance.manage": "Manage attendance",
   "audit.view": "View audit history",
   accountEnabled: "Account enabled",
+  activeInCatalog: "Active (available for new assignments)",
   rateHelp:
     "Use integer UZS. Rates begin at midnight in Asia/Tashkent. An existing rate on the same date cannot be overwritten.",
   assigned: "Role assignments",

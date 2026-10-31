@@ -493,6 +493,12 @@ function App() {
         },
         reasonField,
       ],
+      // Send only what changed: toggling `active` revokes sessions and sets the end date.
+      transform: ({ fullName, active, reason }) => ({
+        ...(fullName !== e.full_name ? { fullName } : {}),
+        ...(active !== !!e.active ? { active } : {}),
+        reason,
+      }),
     });
   const changeLevel = (e: Employee) =>
     setDialog({
@@ -552,7 +558,7 @@ function App() {
         },
         {
           key: "active",
-          label: "accountEnabled",
+          label: "activeInCatalog",
           type: "checkbox",
           initial: !!item.active,
         },
@@ -688,15 +694,7 @@ function App() {
             onClick={async () => {
               try {
                 await api("/auth/logout", "POST", {});
-                setMe(null);
-                setEmployees([]);
-                setShowDisabledEmployees(false);
-                setRoles([]);
-                setLevels([]);
-                setUsers([]);
-                setEvents([]);
-                setDialog(null);
-                setHistory(null);
+                clearAccount();
               } catch (e) {
                 setError((e as Error).message);
               }
